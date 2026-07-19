@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Clock } from './Clock';
 
@@ -36,5 +36,39 @@ describe('Clock', () => {
     await userEvent.type(input, '2:00');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(onRecordStoppage).toHaveBeenCalledWith(120);
+  });
+
+  it('updates displayed time via live-tick interval when running', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+
+    const { unmount } = render(
+      <Clock
+        clock={{ elapsedSec: 0, running: true, startedAt: 0 }}
+        stoppageSec={0}
+        onToggleClock={vi.fn()}
+        onRecordStoppage={vi.fn()}
+      />,
+    );
+
+    // Initial time should be 0:00
+    expect(screen.getByText('0:00')).toBeInTheDocument();
+
+    // Advance system time and timers together to trigger the interval callback
+    act(() => {
+      vi.setSystemTime(5000);
+      vi.advanceTimersByTime(250);
+    });
+
+    // After advancing 5 seconds, displayed time should be 0:05
+    expect(screen.getByText('0:05')).toBeInTheDocument();
+
+    // Unmount and verify cleanup works without errors
+    unmount();
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    vi.useRealTimers();
   });
 });
