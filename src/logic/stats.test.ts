@@ -187,6 +187,6 @@ describe('setPossession', () => {
     let m = matchWithPlayer();
     m.possession = { current: 'teamA', since: 100, accumSec: { teamA: 0, teamB: 0 } };
     m = setPossession(m, 'teamB', 0);
-    expect(m.log[0].rev).toEqual({ kind: 'possession', prev: 'teamA', accumSecDelta: { teamA: 500 } });
+    expect(m.log[0].rev).toEqual({ kind: 'possession', prev: 'teamA', prevSince: 100, accumSecDelta: { teamA: 500 } });
   });
 });

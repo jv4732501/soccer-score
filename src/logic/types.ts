@@ -101,7 +101,7 @@ export type RevEntry =
   | { kind: 'stat'; team: TeamKey; playerId: string | null; fields: Record<string, number>; score: number }
   | { kind: 'card'; team: TeamKey; playerId: string | null; yellow: number; red: number; sentOffPrev: boolean }
   | { kind: 'sub'; team: TeamKey; playerId: string; onField: boolean; inClock: number | null; fieldSecsDelta: number }
-  | { kind: 'possession'; prev: TeamKey | null; accumSecDelta: Partial<Record<TeamKey, number>> }
+  | { kind: 'possession'; prev: TeamKey | null; prevSince: number | null; accumSecDelta: Partial<Record<TeamKey, number>> }
   | { kind: 'corner' | 'offside'; team: TeamKey; delta: number }
   | { kind: 'stoppage'; period: Period; prev: number | undefined }
   | { kind: 'shootoutAttempt' };

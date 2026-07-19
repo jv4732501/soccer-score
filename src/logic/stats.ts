@@ -183,6 +183,7 @@ export function setPossession(match: Match, team: TeamKey, nowMs: number): Match
   let m = clone(match);
   const elapsed = clockElapsed(m.clock, nowMs);
   const prev = m.possession.current;
+  const prevSince = m.possession.since;
   const accumSecDelta: Partial<Record<TeamKey, number>> = {};
   if (prev && m.possession.since != null) {
     const delta = elapsed - m.possession.since;
@@ -191,7 +192,7 @@ export function setPossession(match: Match, team: TeamKey, nowMs: number): Match
   }
   m.possession.current = team;
   m.possession.since = elapsed;
-  const rev: RevEntry = { kind: 'possession', prev, accumSecDelta };
+  const rev: RevEntry = { kind: 'possession', prev, prevSince, accumSecDelta };
   m = appendLog(m, {
     period: m.period,
     clockText: formatClock(elapsed),
