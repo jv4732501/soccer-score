@@ -84,5 +84,9 @@ function applyRev(m: Match, rev: RevEntry): void {
       }
       break;
     }
+    default: {
+      const _exhaustive: never = rev;
+      throw new Error(`undo: unhandled rev.kind: ${(_exhaustive as { kind: string }).kind}`);
+    }
   }
 }

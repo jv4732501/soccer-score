@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { undo } from './undo';
 import { adjustScore } from './match';
-import { recordPlayerStat, recordCard, subOut, setPossession, recordCorner, recordOffside } from './stats';
+import { recordPlayerStat, recordCard, subIn, subOut, setPossession, recordCorner, recordOffside } from './stats';
 import { recordStoppage } from './clock';
 import { recordAttempt, startShootout } from './shootout';
 import type { Match } from './types';
@@ -106,6 +106,39 @@ describe('undo', () => {
     let m = recordStoppage(matchWithPlayer(), 240, 0);
     m = undo(m);
     expect(m.stoppage[1]).toBeUndefined();
+  });
+
+  it('reverses a stoppage-time entry back to a previously-set value', () => {
+    let m = recordStoppage(matchWithPlayer(), 120, 0);
+    m = recordStoppage(m, 240, 0);
+    m = undo(m);
+    expect(m.stoppage[1]).toBe(120);
+  });
+
+  it('reverses a subIn (onField/inClock reset to false/null)', () => {
+    const benched = matchWithPlayer();
+    benched.teamA.players[0].onField = false;
+    benched.teamA.players[0].inClock = null;
+    const m0 = subIn(benched, 'teamA', 'p1', 0);
+    const m = undo(m0);
+    expect(m.teamA.players[0].onField).toBe(false);
+    expect(m.teamA.players[0].inClock).toBeNull();
+  });
+
+  it('reverses a team-only card (collapsed team, no player)', () => {
+    const collapsed = matchWithPlayer();
+    collapsed.teamA.collapsed = true;
+    const m0 = recordCard(collapsed, 'teamA', null, 'yellow', 0);
+    const m = undo(m0);
+    expect(m.teamA.yellowCards).toBe(0);
+  });
+
+  it("reverses possession's very first assignment back to no holder", () => {
+    const m0 = matchWithPlayer(); // possession.current starts null per fixture
+    const m1 = setPossession(m0, 'teamA', 0);
+    const m = undo(m1);
+    expect(m.possession.current).toBeNull();
+    expect(m.possession.accumSec).toEqual({ teamA: 0, teamB: 0 });
   });
 
   it('reverses a shootout attempt, clearing a decided winner if the popped attempt decided it', () => {
