@@ -57,7 +57,7 @@ export function TeamEditor({ team, onSave, onCancel }: TeamEditorProps) {
       </Typography>
       <Stack spacing={1} sx={{ mt: 1 }}>
         {players.map((p) => (
-          <Stack key={p.id} direction="row" spacing={1} alignItems="center">
+          <Stack key={p.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <TextField
               label="#"
               type="number"
