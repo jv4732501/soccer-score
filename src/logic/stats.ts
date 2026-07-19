@@ -94,3 +94,37 @@ export function recordCard(
   });
   return m;
 }
+
+export function recordCorner(match: Match, team: TeamKey, nowMs: number): Match {
+  let m = clone(match);
+  const t = teamOf(m, team);
+  t.corners += 1;
+  const rev: RevEntry = { kind: 'corner', team, delta: 1 };
+  m = appendLog(m, {
+    period: m.period,
+    clockText: formatClock(clockElapsed(m.clock, nowMs)),
+    team,
+    playerId: null,
+    type: 'corner',
+    detail: `${t.name} corner`,
+    rev,
+  });
+  return m;
+}
+
+export function recordOffside(match: Match, team: TeamKey, nowMs: number): Match {
+  let m = clone(match);
+  const t = teamOf(m, team);
+  t.offsides += 1;
+  const rev: RevEntry = { kind: 'offside', team, delta: 1 };
+  m = appendLog(m, {
+    period: m.period,
+    clockText: formatClock(clockElapsed(m.clock, nowMs)),
+    team,
+    playerId: null,
+    type: 'offside',
+    detail: `${t.name} offside`,
+    rev,
+  });
+  return m;
+}

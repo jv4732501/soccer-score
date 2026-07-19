@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recordPlayerStat, recordCard } from './stats';
+import { recordPlayerStat, recordCard, recordCorner, recordOffside } from './stats';
 import type { Match } from './types';
 
 function matchWithPlayer(): Match {
@@ -103,5 +103,19 @@ describe('recordCard', () => {
     expect(m.teamA.players[0].yellowCards).toBe(3);
     expect(m.teamA.players[0].redCards).toBe(1); // still just the one auto-escalated red, not a 2nd
     expect(m.teamA.players[0].sentOff).toBe(true);
+  });
+});
+
+describe('recordCorner / recordOffside', () => {
+  it('recordCorner increments the team corner count and logs it', () => {
+    const m = recordCorner(matchWithPlayer(), 'teamA', 0);
+    expect(m.teamA.corners).toBe(1);
+    expect(m.log[0].detail).toBe('Alpha corner');
+    expect(m.log[0].rev).toEqual({ kind: 'corner', team: 'teamA', delta: 1 });
+  });
+  it('recordOffside increments the team offside count and logs it', () => {
+    const m = recordOffside(matchWithPlayer(), 'teamB', 0);
+    expect(m.teamB.offsides).toBe(1);
+    expect(m.log[0].rev).toEqual({ kind: 'offside', team: 'teamB', delta: 1 });
   });
 });
