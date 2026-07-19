@@ -160,6 +160,10 @@ describe('subIn / subOut', () => {
     const m = subOut(matchWithPlayer(), 'teamA', 'p1', 600000);
     expect(m.log[0].rev).toEqual({ kind: 'sub', team: 'teamA', playerId: 'p1', onField: true, inClock: 0, fieldSecsDelta: 600 });
   });
+  it('subIn logs a rev entry sufficient to undo (onField/inClock reset to false/null)', () => {
+    const m = subIn(matchWithBenchedPlayer(), 'teamA', 'p1', 600000);
+    expect(m.log[0].rev).toEqual({ kind: 'sub', team: 'teamA', playerId: 'p1', onField: false, inClock: null, fieldSecsDelta: 0 });
+  });
 });
 
 describe('setPossession', () => {

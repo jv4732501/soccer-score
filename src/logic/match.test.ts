@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { newMatch, adjustScore, snapshotPeriod, endHalf, addExtraTime, endGame } from './match';
+import { subIn, subOut, setPossession } from './stats';
+import { startClock } from './clock';
 import type { SavedTeam } from './types';
 
 function savedTeam(id: string, name: string): SavedTeam {
@@ -99,6 +101,27 @@ describe('endHalf', () => {
     const m2 = endHalf(m, 0);
     expect(m2.period).toBe(2); // unchanged by the second call
     expect(m2.periodScores).toHaveLength(1); // no duplicate snapshot
+  });
+  it('closes out on-field time and possession accrual when a half ends', () => {
+    // The clock must actually be running for elapsed time to accrue -- endHalf's stopClock()
+    // is a no-op on a never-started clock, so we start it before subbing in / setting possession.
+    let m = makeStartingMatch();
+    m = startClock(m, 0);
+    // p3 is only active for teamB in makeStartingMatch (activeIdsA is ['p1', 'p2']), so we use
+    // p2 -- an active-but-benched (onField: false) teamA player -- instead.
+    m = subIn(m, 'teamA', 'p2', 0);
+    m = setPossession(m, 'teamA', 0);
+    m = endHalf(m, 20 * 60 * 1000); // 20 minutes elapsed when the half ends
+    // closeOutAccrual flushes the accrued 20 minutes directly into fieldSecs/accumSec as part of
+    // ending the half -- it does not wait for a later subOut/setPossession call to realize it.
+    expect(m.teamA.players.find((p) => p.id === 'p2')!.fieldSecs).toBe(20 * 60);
+    expect(m.possession.accumSec.teamA).toBe(20 * 60);
+    // reopenAccrual rebases inClock/since to 0 for the new period (whose clock also reset to 0),
+    // so subbing out immediately in period 2 (elapsed 0 again) should add no further delta --
+    // confirming the baseline was rebased rather than left stale or double-counted.
+    m = subOut(m, 'teamA', 'p2', 0);
+    expect(m.teamA.players.find((p) => p.id === 'p2')!.fieldSecs).toBe(20 * 60);
+    expect(m.possession.current).toBe('teamA'); // possession holder persists across the half, just re-based
   });
 });
 
