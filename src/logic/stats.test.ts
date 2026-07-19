@@ -89,4 +89,19 @@ describe('recordCard', () => {
     const m = recordCard(matchWithPlayer(), 'teamA', 'p1', 'red', 0);
     expect(m.log[0].rev).toEqual({ kind: 'card', team: 'teamA', playerId: 'p1', yellow: 0, red: 1, sentOffPrev: false });
   });
+  it('the 2nd-yellow auto-red rev entry captures both deltas for undo', () => {
+    let m = recordCard(matchWithPlayer(), 'teamA', 'p1', 'yellow', 0);
+    m = recordCard(m, 'teamA', 'p1', 'yellow', 0);
+    expect(m.log[m.log.length - 1].rev).toEqual({
+      kind: 'card', team: 'teamA', playerId: 'p1', yellow: 1, red: 1, sentOffPrev: false,
+    });
+  });
+  it('a card recorded against an already-sent-off player does not re-trigger auto-escalation', () => {
+    let m = recordCard(matchWithPlayer(), 'teamA', 'p1', 'yellow', 0);
+    m = recordCard(m, 'teamA', 'p1', 'yellow', 0); // 2nd yellow -> auto-red, sentOff true, redCards 1
+    m = recordCard(m, 'teamA', 'p1', 'yellow', 0); // 3rd yellow on an already-sent-off player
+    expect(m.teamA.players[0].yellowCards).toBe(3);
+    expect(m.teamA.players[0].redCards).toBe(1); // still just the one auto-escalated red, not a 2nd
+    expect(m.teamA.players[0].sentOff).toBe(true);
+  });
 });
