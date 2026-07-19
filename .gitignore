@@ -24,6 +24,10 @@ dist-ssr
 *.sln
 *.sw?
 
+# Playwright test output
+test-results/
+playwright-report/
+blob-report/
 
 # Claude Code harness worktree bookkeeping — never project content
 .claude/worktrees/
