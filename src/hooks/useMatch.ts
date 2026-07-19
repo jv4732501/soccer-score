@@ -162,14 +162,23 @@ export function useMatch(): MatchHookApi {
 
   const recordPlayerStatApi = useCallback(
     (team: TeamKey, playerId: string, stat: PlayerStatField) => {
-      dispatch({ type: 'APPLY_MATCH', fn: (m) => recordPlayerStat(m, team, playerId, stat, Date.now()) });
+      dispatch({
+        type: 'APPLY_MATCH',
+        fn: (m) => recordPlayerStat(m, team, playerId, stat, Date.now()),
+      });
     },
     [],
   );
 
-  const recordCardApi = useCallback((team: TeamKey, playerId: string | null, color: 'yellow' | 'red') => {
-    dispatch({ type: 'APPLY_MATCH', fn: (m) => recordCard(m, team, playerId, color, Date.now()) });
-  }, []);
+  const recordCardApi = useCallback(
+    (team: TeamKey, playerId: string | null, color: 'yellow' | 'red') => {
+      dispatch({
+        type: 'APPLY_MATCH',
+        fn: (m) => recordCard(m, team, playerId, color, Date.now()),
+      });
+    },
+    [],
+  );
 
   const recordCornerApi = useCallback((team: TeamKey) => {
     dispatch({ type: 'APPLY_MATCH', fn: (m) => recordCorner(m, team, Date.now()) });
