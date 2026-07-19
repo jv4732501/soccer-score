@@ -177,3 +177,29 @@ export function subOut(match: Match, team: TeamKey, playerId: string, nowMs: num
   });
   return m;
 }
+
+export function setPossession(match: Match, team: TeamKey, nowMs: number): Match {
+  if (match.possession.current === team) return match;
+  let m = clone(match);
+  const elapsed = clockElapsed(m.clock, nowMs);
+  const prev = m.possession.current;
+  const accumSecDelta: Partial<Record<TeamKey, number>> = {};
+  if (prev && m.possession.since != null) {
+    const delta = elapsed - m.possession.since;
+    m.possession.accumSec[prev] += delta;
+    accumSecDelta[prev] = delta;
+  }
+  m.possession.current = team;
+  m.possession.since = elapsed;
+  const rev: RevEntry = { kind: 'possession', prev, accumSecDelta };
+  m = appendLog(m, {
+    period: m.period,
+    clockText: formatClock(elapsed),
+    team,
+    playerId: null,
+    type: 'possession',
+    detail: `Possession: ${teamOf(m, team).name}`,
+    rev,
+  });
+  return m;
+}

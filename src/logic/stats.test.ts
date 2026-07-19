@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recordPlayerStat, recordCard, recordCorner, recordOffside, subIn, subOut } from './stats';
+import { recordPlayerStat, recordCard, recordCorner, recordOffside, subIn, subOut, setPossession } from './stats';
 import type { Match } from './types';
 
 function matchWithPlayer(): Match {
@@ -159,5 +159,34 @@ describe('subIn / subOut', () => {
   it('subOut logs a rev with enough to undo the accrual', () => {
     const m = subOut(matchWithPlayer(), 'teamA', 'p1', 600000);
     expect(m.log[0].rev).toEqual({ kind: 'sub', team: 'teamA', playerId: 'p1', onField: true, inClock: 0, fieldSecsDelta: 600 });
+  });
+});
+
+describe('setPossession', () => {
+  it('sets current possession and since when none was set before', () => {
+    const m = setPossession(matchWithPlayer(), 'teamA', 600000);
+    expect(m.possession.current).toBe('teamA');
+    expect(m.possession.since).toBe(600);
+    expect(m.possession.accumSec).toEqual({ teamA: 0, teamB: 0 });
+  });
+  it('accrues time to the previous holder before switching', () => {
+    let m = matchWithPlayer();
+    m.possession = { current: 'teamA', since: 100, accumSec: { teamA: 0, teamB: 0 } };
+    m = setPossession(m, 'teamB', 400000); // elapsedSec at nowMs=400000 is still 600 per fixture clock (stopped)
+    expect(m.possession.accumSec.teamA).toBe(500); // 600 - 100
+    expect(m.possession.current).toBe('teamB');
+    expect(m.possession.since).toBe(600);
+  });
+  it('is a no-op if already the current holder', () => {
+    const m0 = matchWithPlayer();
+    m0.possession.current = 'teamA';
+    const m = setPossession(m0, 'teamA', 0);
+    expect(m).toBe(m0);
+  });
+  it('the rev entry captures the previous holder and the accrual delta for undo', () => {
+    let m = matchWithPlayer();
+    m.possession = { current: 'teamA', since: 100, accumSec: { teamA: 0, teamB: 0 } };
+    m = setPossession(m, 'teamB', 0);
+    expect(m.log[0].rev).toEqual({ kind: 'possession', prev: 'teamA', accumSecDelta: { teamA: 500 } });
   });
 });
