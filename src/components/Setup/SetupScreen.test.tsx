@@ -63,4 +63,82 @@ describe('SetupScreen', () => {
     );
     expect(screen.getByRole('button', { name: 'Start Match' })).toBeDisabled();
   });
+
+  it('toggles collapsed mode for Team A and still sends the current activeIds', async () => {
+    const onStartMatch = vi.fn();
+    render(
+      <SetupScreen
+        savedTeams={[teamA, teamB]}
+        onStartMatch={onStartMatch}
+        onExportBackup={vi.fn()}
+        onImportBackup={vi.fn()}
+      />,
+    );
+
+    // Select both teams
+    await userEvent.click(screen.getAllByRole('button', { name: 'Lions' })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: 'Tigers' })[1]);
+
+    // Toggle collapsed checkbox for Team A
+    const collapsedCheckboxes = screen.getAllByRole('checkbox', { name: 'Collapsed (score-only tracking)' });
+    await userEvent.click(collapsedCheckboxes[0]);
+
+    // Start match
+    await userEvent.click(screen.getByRole('button', { name: 'Start Match' }));
+
+    expect(onStartMatch).toHaveBeenCalledWith({
+      config: {
+        halfLengthMin: 45,
+        hasExtraTime: false,
+        extraTimeLengthMin: 15,
+        hasShootout: false,
+      },
+      teamA,
+      activeIdsA: ['p1', 'p2'],
+      collapsedA: true,
+      teamB,
+      activeIdsB: ['p3'],
+      collapsedB: false,
+      homeTeam: 'teamA',
+    });
+  });
+
+  it('toggles an individual player off and reflects in activeIds', async () => {
+    const onStartMatch = vi.fn();
+    render(
+      <SetupScreen
+        savedTeams={[teamA, teamB]}
+        onStartMatch={onStartMatch}
+        onExportBackup={vi.fn()}
+        onImportBackup={vi.fn()}
+      />,
+    );
+
+    // Select both teams
+    await userEvent.click(screen.getAllByRole('button', { name: 'Lions' })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: 'Tigers' })[1]);
+
+    // Uncheck the first player (#9 Alex) from Team A
+    const playerCheckboxes = screen.getAllByRole('checkbox', { name: /#9 Alex/ });
+    await userEvent.click(playerCheckboxes[0]);
+
+    // Start match
+    await userEvent.click(screen.getByRole('button', { name: 'Start Match' }));
+
+    expect(onStartMatch).toHaveBeenCalledWith({
+      config: {
+        halfLengthMin: 45,
+        hasExtraTime: false,
+        extraTimeLengthMin: 15,
+        hasShootout: false,
+      },
+      teamA,
+      activeIdsA: ['p2'], // Only Sam (p2) remains active
+      collapsedA: false,
+      teamB,
+      activeIdsB: ['p3'],
+      collapsedB: false,
+      homeTeam: 'teamA',
+    });
+  });
 });
