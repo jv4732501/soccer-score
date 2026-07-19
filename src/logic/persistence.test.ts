@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { serialize, deserialize, isResumable, upsertTeam, removeTeam, upsertHistory, removeFromHistory } from './persistence';
+import { serialize, deserialize, isResumable, upsertTeam, removeTeam, upsertHistory, removeFromHistory, buildBackup, validateBackup, mergeBackup } from './persistence';
 import type { Match, SavedTeam } from './types';
+import type { AppState } from './persistence';
 
 describe('serialize / deserialize', () => {
   it('round-trips a plain object', () => {
@@ -69,5 +70,81 @@ describe('upsertHistory / removeFromHistory', () => {
     history = upsertHistory(history, match('m2'));
     history = removeFromHistory(history, 'm1');
     expect(history.map((m) => m.id)).toEqual(['m2']);
+  });
+});
+
+function emptyState(): AppState {
+  return { teams: [], history: [], match: null };
+}
+
+describe('buildBackup', () => {
+  it('captures app id, format version, timestamp, and a deep copy of state', () => {
+    const state: AppState = { teams: [team('a', 'Alpha')], history: [], match: null };
+    const backup = buildBackup(state, 1700000000000);
+    expect(backup.app).toBe('soccerscore');
+    expect(backup.formatVersion).toBe(1);
+    expect(backup.exportedAt).toBe(new Date(1700000000000).toISOString());
+    expect(backup.teams).toEqual(state.teams);
+    expect(backup.teams).not.toBe(state.teams); // deep copy, not same reference
+  });
+});
+
+describe('validateBackup', () => {
+  it('rejects a non-object', () => {
+    expect(validateBackup(null).ok).toBe(false);
+    expect(validateBackup('nope').ok).toBe(false);
+  });
+  it("rejects an object missing app: 'soccerscore'", () => {
+    expect(validateBackup({ app: 'other' }).ok).toBe(false);
+  });
+  it('rejects a backup from a newer format version', () => {
+    const result = validateBackup({ app: 'soccerscore', formatVersion: 2 });
+    expect(result.ok).toBe(false);
+  });
+  it('accepts a valid backup and defaults missing arrays to empty', () => {
+    const result = validateBackup({ app: 'soccerscore', formatVersion: 1 });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.backup.teams).toEqual([]);
+      expect(result.backup.history).toEqual([]);
+      expect(result.backup.match).toBeNull();
+    }
+  });
+});
+
+describe('mergeBackup', () => {
+  it('adds new teams and counts them as added', () => {
+    const { state, summary } = mergeBackup(emptyState(), { teams: [team('a', 'Alpha')], history: [], match: null });
+    expect(state.teams).toHaveLength(1);
+    expect(summary.teamsAdded).toBe(1);
+    expect(summary.teamsUpdated).toBe(0);
+  });
+  it('updates existing teams by id and counts them as updated', () => {
+    const existing: AppState = { teams: [team('a', 'Alpha')], history: [], match: null };
+    const { state, summary } = mergeBackup(existing, { teams: [team('a', 'Alpha United')], history: [], match: null });
+    expect(state.teams[0].name).toBe('Alpha United');
+    expect(summary.teamsUpdated).toBe(1);
+    expect(summary.teamsAdded).toBe(0);
+  });
+  it('adds new history entries and counts them as added', () => {
+    const { state, summary } = mergeBackup(emptyState(), { teams: [], history: [match('m1')], match: null });
+    expect(state.history).toHaveLength(1);
+    expect(summary.gamesAdded).toBe(1);
+  });
+  it('restores a backed-up in-progress match when there is no current one', () => {
+    const backupMatch = match('m1', 'game');
+    const { state, summary } = mergeBackup(emptyState(), { teams: [], history: [], match: backupMatch });
+    expect(state.match).toEqual(backupMatch);
+    expect(summary.matchRestored).toBe(true);
+    expect(summary.matchSkipped).toBe(false);
+  });
+  it('skips restoring a backed-up match if one is already in progress', () => {
+    const current = match('current', 'game');
+    const backupMatch = match('m1', 'game');
+    const existing: AppState = { teams: [], history: [], match: current };
+    const { state, summary } = mergeBackup(existing, { teams: [], history: [], match: backupMatch });
+    expect(state.match).toBe(current);
+    expect(summary.matchSkipped).toBe(true);
+    expect(summary.matchRestored).toBe(false);
   });
 });
