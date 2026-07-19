@@ -80,7 +80,9 @@ describe('SetupScreen', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Tigers' })[1]);
 
     // Toggle collapsed checkbox for Team A
-    const collapsedCheckboxes = screen.getAllByRole('checkbox', { name: 'Collapsed (score-only tracking)' });
+    const collapsedCheckboxes = screen.getAllByRole('checkbox', {
+      name: 'Collapsed (score-only tracking)',
+    });
     await userEvent.click(collapsedCheckboxes[0]);
 
     // Start match
