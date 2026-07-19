@@ -40,3 +40,57 @@ export function recordPlayerStat(
   });
   return m;
 }
+
+export function recordCard(
+  match: Match,
+  team: TeamKey,
+  playerId: string | null,
+  color: 'yellow' | 'red',
+  nowMs: number,
+): Match {
+  let m = clone(match);
+  const t = teamOf(m, team);
+  const p = playerId ? findPlayer(t, playerId) : null;
+  if (playerId && !p) return match;
+
+  const prevSentOff = p ? p.sentOff : false;
+  let autoRed = false;
+  let yellowDelta = 0;
+  let redDelta = 0;
+
+  if (color === 'yellow') {
+    t.yellowCards += 1;
+    yellowDelta = 1;
+    if (p) {
+      p.yellowCards += 1;
+      if (p.yellowCards >= 2 && !p.sentOff) autoRed = true;
+    }
+  } else {
+    t.redCards += 1;
+    redDelta = 1;
+    if (p) p.redCards += 1;
+  }
+
+  if (autoRed && p) {
+    t.redCards += 1;
+    p.redCards += 1;
+    redDelta += 1;
+  }
+
+  if (p && (color === 'red' || autoRed)) p.sentOff = true;
+
+  const rev: RevEntry = { kind: 'card', team, playerId, yellow: yellowDelta, red: redDelta, sentOffPrev: prevSentOff };
+  const detail = p
+    ? `${playerTag(p)} ${color} card${autoRed ? ' (2nd yellow — sent off)' : ''}`
+    : `${t.name} ${color} card`;
+  m = appendLog(m, {
+    period: m.period,
+    clockText: formatClock(clockElapsed(m.clock, nowMs)),
+    team,
+    playerId,
+    type: autoRed ? 'card_2nd_yellow' : `card_${color}`,
+    detail,
+    rev,
+  });
+  return m;
+}

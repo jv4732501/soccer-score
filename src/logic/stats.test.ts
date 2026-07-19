@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recordPlayerStat } from './stats';
+import { recordPlayerStat, recordCard } from './stats';
 import type { Match } from './types';
 
 function matchWithPlayer(): Match {
@@ -53,5 +53,40 @@ describe('recordPlayerStat', () => {
     const original = matchWithPlayer();
     const m = recordPlayerStat(original, 'teamA', 'nope', 'goals', 0);
     expect(m).toBe(original);
+  });
+});
+
+describe('recordCard', () => {
+  it('a yellow card increments both team and player tallies', () => {
+    const m = recordCard(matchWithPlayer(), 'teamA', 'p1', 'yellow', 0);
+    expect(m.teamA.yellowCards).toBe(1);
+    expect(m.teamA.players[0].yellowCards).toBe(1);
+    expect(m.teamA.players[0].sentOff).toBe(false);
+  });
+  it('a direct red card sends the player off', () => {
+    const m = recordCard(matchWithPlayer(), 'teamA', 'p1', 'red', 0);
+    expect(m.teamA.redCards).toBe(1);
+    expect(m.teamA.players[0].redCards).toBe(1);
+    expect(m.teamA.players[0].sentOff).toBe(true);
+  });
+  it('a 2nd yellow auto-escalates to a red and sends the player off', () => {
+    let m = recordCard(matchWithPlayer(), 'teamA', 'p1', 'yellow', 0);
+    m = recordCard(m, 'teamA', 'p1', 'yellow', 0);
+    expect(m.teamA.players[0].yellowCards).toBe(2);
+    expect(m.teamA.players[0].redCards).toBe(1);
+    expect(m.teamA.players[0].sentOff).toBe(true);
+    expect(m.teamA.redCards).toBe(1);
+    expect(m.log[m.log.length - 1].type).toBe('card_2nd_yellow');
+  });
+  it('a collapsed team (no player) still increments the team tally', () => {
+    const collapsed = matchWithPlayer();
+    collapsed.teamA.collapsed = true;
+    const m = recordCard(collapsed, 'teamA', null, 'yellow', 0);
+    expect(m.teamA.yellowCards).toBe(1);
+    expect(m.log[0].detail).toBe('Alpha yellow card');
+  });
+  it('the rev entry captures enough to undo (yellow/red deltas and prior sentOff)', () => {
+    const m = recordCard(matchWithPlayer(), 'teamA', 'p1', 'red', 0);
+    expect(m.log[0].rev).toEqual({ kind: 'card', team: 'teamA', playerId: 'p1', yellow: 0, red: 1, sentOffPrev: false });
   });
 });
