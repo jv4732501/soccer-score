@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { startShootout, recordAttempt } from './shootout';
+import { endGame } from './match';
+import { startClock } from './clock';
+import { subIn, setPossession } from './stats';
 import type { Match } from './types';
 
 function baseMatch(): Match {
@@ -34,6 +37,53 @@ describe('startShootout', () => {
     expect(m.screen).toBe('shootout');
     expect(m.period).toBe('shootout');
     expect(m.shootout).toEqual({ attempts: [], winner: null });
+  });
+
+  it('freezes the clock and flushes accrual when a shootout starts with the clock still running', () => {
+    // Build a match with an on-field teamA player and active teamA possession, then start the
+    // clock -- mirroring match.test.ts's "closes out on-field time and possession accrual when a
+    // half ends" integration test, but for the sibling startShootout transition.
+    let m = baseMatch();
+    m.teamA.players.push({
+      id: 'p1',
+      num: 9,
+      name: 'Striker',
+      starter: true,
+      goalkeeper: false,
+      onField: false,
+      inClock: null,
+      fieldSecs: 0,
+      goals: 0,
+      assists: 0,
+      shotsOnGoal: 0,
+      tackles: 0,
+      foulsCommitted: 0,
+      saves: 0,
+      yellowCards: 0,
+      redCards: 0,
+      sentOff: false,
+    });
+    m = startClock(m, 0);
+    m = subIn(m, 'teamA', 'p1', 0);
+    m = setPossession(m, 'teamA', 0);
+
+    m = startShootout(m, 5 * 60 * 1000); // 5 minutes elapsed when the shootout starts
+
+    // The clock is now frozen at the elapsed time up to the shootout start, and closeOutAccrual
+    // flushed that time into fieldSecs/accumSec immediately -- it did not wait for the shootout
+    // (or a later endGame) to realize it.
+    expect(m.clock.running).toBe(false);
+    expect(m.clock.elapsedSec).toBe(5 * 60);
+    const flushedFieldSecs = m.teamA.players.find((p) => p.id === 'p1')!.fieldSecs;
+    expect(flushedFieldSecs).toBe(5 * 60);
+    expect(m.possession.accumSec.teamA).toBe(5 * 60);
+
+    // Simulate the shootout taking 10 real minutes, then endGame is called much later. Because
+    // startShootout froze the clock (and did not reopen accrual), no further time should accrue
+    // during the shootout -- fieldSecs must not grow beyond what was already flushed.
+    m = endGame(m, 15 * 60 * 1000);
+    expect(m.teamA.players.find((p) => p.id === 'p1')!.fieldSecs).toBe(flushedFieldSecs);
+    expect(m.possession.accumSec.teamA).toBe(5 * 60);
   });
 });
 

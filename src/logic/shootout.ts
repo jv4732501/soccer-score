@@ -1,9 +1,12 @@
 import type { Match, TeamKey } from './types';
 import { clone, appendLog, teamOf } from './log';
-import { clockElapsed, formatClock } from './clock';
+import { clockElapsed, formatClock, stopClock } from './clock';
+import { closeOutAccrual, snapshotPeriod } from './match';
 
 export function startShootout(match: Match, nowMs: number): Match {
-  let m = clone(match);
+  let m = stopClock(match, nowMs);
+  m = closeOutAccrual(m);
+  m = snapshotPeriod(m);
   m.screen = 'shootout';
   m.period = 'shootout';
   m.shootout = { attempts: [], winner: null };

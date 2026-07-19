@@ -91,7 +91,7 @@ export function snapshotPeriod(match: Match): Match {
   return m;
 }
 
-function closeOutAccrual(match: Match): Match {
+export function closeOutAccrual(match: Match): Match {
   const m = clone(match);
   const elapsed = m.clock.elapsedSec;
   for (const key of ['teamA', 'teamB'] as TeamKey[]) {
