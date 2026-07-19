@@ -77,4 +77,19 @@ describe('recordAttempt', () => {
     m = recordAttempt(m, 'teamB', true, 0);
     expect(m).toBe(decided);
   });
+  it('does not declare a winner after only one team has kicked in a round', () => {
+    let m = startShootout(baseMatch(), 0);
+    m = recordAttempt(m, 'teamA', true, 0); // teamB has not kicked yet this round
+    expect(m.shootout!.winner).toBeNull();
+  });
+  it('continues sudden death when a round stays tied, then resolves once it differs', () => {
+    let m = startShootout(baseMatch(), 0);
+    for (let i = 0; i < 5; i++) m = playRound(m, true, true); // 5-5 tied
+    expect(m.shootout!.attempts).toHaveLength(10);
+    m = playRound(m, true, true); // sudden-death round 6: both score, still tied
+    expect(m.shootout!.winner).toBeNull();
+    expect(m.shootout!.attempts).toHaveLength(12);
+    m = playRound(m, true, false); // sudden-death round 7: A scores, B misses
+    expect(m.shootout!.winner).toBe('teamA');
+  });
 });
