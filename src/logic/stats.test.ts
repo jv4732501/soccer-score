@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recordPlayerStat, recordCard, recordCorner, recordOffside } from './stats';
+import { recordPlayerStat, recordCard, recordCorner, recordOffside, subIn, subOut } from './stats';
 import type { Match } from './types';
 
 function matchWithPlayer(): Match {
@@ -117,5 +117,47 @@ describe('recordCorner / recordOffside', () => {
     const m = recordOffside(matchWithPlayer(), 'teamB', 0);
     expect(m.teamB.offsides).toBe(1);
     expect(m.log[0].rev).toEqual({ kind: 'offside', team: 'teamB', delta: 1 });
+  });
+});
+
+function matchWithBenchedPlayer(): Match {
+  const m = matchWithPlayer();
+  m.teamA.players[0].onField = false;
+  m.teamA.players[0].inClock = null;
+  return m;
+}
+
+describe('subIn / subOut', () => {
+  it('subIn puts the player onField and records inClock at the current elapsed time', () => {
+    const m = subIn(matchWithBenchedPlayer(), 'teamA', 'p1', 600000);
+    expect(m.teamA.players[0].onField).toBe(true);
+    expect(m.teamA.players[0].inClock).toBe(600);
+  });
+  it('subIn is a no-op if the player is already on field', () => {
+    const original = matchWithPlayer(); // p1 already onField from the fixture
+    const m = subIn(original, 'teamA', 'p1', 0);
+    expect(m).toBe(original);
+  });
+  it('subIn is a no-op for a sent-off player', () => {
+    const m0 = matchWithBenchedPlayer();
+    m0.teamA.players[0].sentOff = true;
+    const m = subIn(m0, 'teamA', 'p1', 0);
+    expect(m).toBe(m0);
+  });
+  it('subOut accrues fieldSecs based on the clock delta since subIn', () => {
+    const m0 = matchWithPlayer(); // onField true, inClock 0, clock.elapsedSec 600
+    const m = subOut(m0, 'teamA', 'p1', 600000);
+    expect(m.teamA.players[0].onField).toBe(false);
+    expect(m.teamA.players[0].inClock).toBeNull();
+    expect(m.teamA.players[0].fieldSecs).toBe(600);
+  });
+  it('subOut is a no-op if the player is not on field', () => {
+    const original = matchWithBenchedPlayer();
+    const m = subOut(original, 'teamA', 'p1', 0);
+    expect(m).toBe(original);
+  });
+  it('subOut logs a rev with enough to undo the accrual', () => {
+    const m = subOut(matchWithPlayer(), 'teamA', 'p1', 600000);
+    expect(m.log[0].rev).toEqual({ kind: 'sub', team: 'teamA', playerId: 'p1', onField: true, inClock: 0, fieldSecsDelta: 600 });
   });
 });

@@ -128,3 +128,52 @@ export function recordOffside(match: Match, team: TeamKey, nowMs: number): Match
   });
   return m;
 }
+
+export function subIn(match: Match, team: TeamKey, playerId: string, nowMs: number): Match {
+  const t0 = teamOf(match, team);
+  const p0 = findPlayer(t0, playerId);
+  if (!p0 || p0.onField || p0.sentOff) return match;
+  let m = clone(match);
+  const t = teamOf(m, team);
+  const p = findPlayer(t, playerId)!;
+  const elapsed = clockElapsed(m.clock, nowMs);
+  p.onField = true;
+  p.inClock = elapsed;
+  const rev: RevEntry = { kind: 'sub', team, playerId, onField: false, inClock: null, fieldSecsDelta: 0 };
+  m = appendLog(m, {
+    period: m.period,
+    clockText: formatClock(elapsed),
+    team,
+    playerId,
+    type: 'sub_in',
+    detail: `${playerTag(p)} subs in`,
+    rev,
+  });
+  return m;
+}
+
+export function subOut(match: Match, team: TeamKey, playerId: string, nowMs: number): Match {
+  const t0 = teamOf(match, team);
+  const p0 = findPlayer(t0, playerId);
+  if (!p0 || !p0.onField) return match;
+  let m = clone(match);
+  const t = teamOf(m, team);
+  const p = findPlayer(t, playerId)!;
+  const elapsed = clockElapsed(m.clock, nowMs);
+  const prevInClock = p.inClock;
+  const delta = prevInClock != null ? elapsed - prevInClock : 0;
+  p.fieldSecs += delta;
+  p.onField = false;
+  p.inClock = null;
+  const rev: RevEntry = { kind: 'sub', team, playerId, onField: true, inClock: prevInClock, fieldSecsDelta: delta };
+  m = appendLog(m, {
+    period: m.period,
+    clockText: formatClock(elapsed),
+    team,
+    playerId,
+    type: 'sub_out',
+    detail: `${playerTag(p)} subs out`,
+    rev,
+  });
+  return m;
+}
