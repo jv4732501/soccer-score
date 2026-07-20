@@ -9,8 +9,9 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import type { Match, Period } from '../../logic/types';
+import type { Match } from '../../logic/types';
 import type { MatchHookApi } from '../../hooks/useMatch';
+import { periodLabel } from '../../logic/periodLabel';
 import { Clock } from './Clock';
 import { ScoreBar } from './ScoreBar';
 import { TeamPanel } from './TeamPanel';
@@ -33,14 +34,6 @@ export interface GameScreenProps {
   onStartShootout: MatchHookApi['startShootout'];
   onUndo: MatchHookApi['undo'];
 }
-
-const PERIOD_LABEL: Record<Period, string> = {
-  1: 'Half 1',
-  2: 'Half 2',
-  ET1: 'Extra Time 1',
-  ET2: 'Extra Time 2',
-  shootout: 'Shootout',
-};
 
 type Confirmation = { title: string; body: string; onConfirm: () => void } | null;
 
@@ -75,7 +68,7 @@ export function GameScreen({
 
   return (
     <Box>
-      <Typography variant="overline">{PERIOD_LABEL[match.period]}</Typography>
+      <Typography variant="overline">{periodLabel(match.period)}</Typography>
       <Clock
         clock={match.clock}
         stoppageSec={match.stoppage[match.period] ?? 0}
