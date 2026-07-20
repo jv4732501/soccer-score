@@ -20,11 +20,7 @@ export function ScoreBar({
   onSetPossession,
 }: ScoreBarProps) {
   return (
-    <Stack
-      direction="row"
-      spacing={4}
-      sx={{ justifyContent: 'center', alignItems: 'center' }}
-    >
+    <Stack direction="row" spacing={4} sx={{ justifyContent: 'center', alignItems: 'center' }}>
       <Box sx={{ textAlign: 'center' }}>
         <Typography variant="h6">{teamAName}</Typography>
         <Typography variant="h3">{score.teamA}</Typography>
