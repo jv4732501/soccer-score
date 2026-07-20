@@ -145,11 +145,7 @@ export function GameScreen({
           <Button
             variant="contained"
             onClick={() =>
-              confirmAndRun(
-                'Start penalty shootout?',
-                'This cannot be undone.',
-                onStartShootout,
-              )
+              confirmAndRun('Start penalty shootout?', 'This cannot be undone.', onStartShootout)
             }
           >
             Start Shootout
