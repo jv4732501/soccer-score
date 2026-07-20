@@ -39,4 +39,35 @@ describe('App', () => {
     expect(screen.getByText('Half 1')).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Setup' })).not.toBeInTheDocument();
   });
+
+  it('finishes a match and returns to Setup via New Match, closing the summary dead-end', async () => {
+    localStorage.setItem('soccerscore.teams', serialize([teamA, teamB]));
+    render(<App />);
+    await userEvent.click(screen.getByRole('tab', { name: 'Setup' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Lions' })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: 'Tigers' })[1]);
+    await userEvent.click(screen.getByRole('button', { name: 'Start Match' }));
+    await userEvent.click(screen.getByRole('button', { name: 'End Game' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(screen.getByText(/Final: Lions 0 – 0 Tigers/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'New Match' }));
+    expect(screen.getByRole('heading', { name: 'Setup' })).toBeInTheDocument();
+  });
+
+  it('reviews a finished match from History read-only and returns via Back to History', async () => {
+    localStorage.setItem('soccerscore.teams', serialize([teamA, teamB]));
+    render(<App />);
+    await userEvent.click(screen.getByRole('tab', { name: 'Setup' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Lions' })[0]);
+    await userEvent.click(screen.getAllByRole('button', { name: 'Tigers' })[1]);
+    await userEvent.click(screen.getByRole('button', { name: 'Start Match' }));
+    await userEvent.click(screen.getByRole('button', { name: 'End Game' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New Match' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'History' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Review' }));
+    expect(screen.getByRole('button', { name: 'Back to History' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Back to History' }));
+    expect(screen.getByRole('heading', { name: 'History' })).toBeInTheDocument();
+  });
 });

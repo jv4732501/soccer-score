@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Container from '@mui/material/Container';
 import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider } from '@mui/material/styles';
-import Typography from '@mui/material/Typography';
 import { createAppTheme } from '../theme';
 import { useMatch } from '../hooks/useMatch';
 import { Nav } from './Nav';
@@ -11,11 +10,23 @@ import { TeamsScreen } from './Teams/TeamsScreen';
 import { SetupScreen } from './Setup/SetupScreen';
 import { GameScreen } from './Game/GameScreen';
 import { ShootoutScreen } from './Shootout/ShootoutScreen';
+import { SummaryScreen } from './Summary/SummaryScreen';
+import { HistoryScreen } from './History/HistoryScreen';
 
 function App() {
   const api = useMatch();
   const [homeView, setHomeView] = useState<HomeView>('teams');
+  const [historyViewId, setHistoryViewId] = useState<string | null>(null);
   const theme = useMemo(() => createAppTheme(api.theme), [api.theme]);
+
+  const reviewMatch = historyViewId
+    ? (api.history.find((m) => m.id === historyViewId) ?? null)
+    : null;
+
+  useEffect(() => {
+    // Guards against a stale historyViewId (e.g. its entry was deleted while being viewed).
+    if (historyViewId && !reviewMatch) setHistoryViewId(null);
+  }, [historyViewId, reviewMatch]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -50,9 +61,24 @@ function App() {
             onEndGame={api.endGame}
           />
         </Container>
-      ) : api.match ? (
+      ) : api.match && api.match.screen === 'summary' ? (
         <Container maxWidth="md" sx={{ py: 4 }}>
-          <Typography>Match summary is coming in the next update.</Typography>
+          <SummaryScreen
+            match={api.match}
+            mode="live"
+            onClose={() => {
+              api.closeMatch();
+              setHomeView('setup');
+            }}
+          />
+        </Container>
+      ) : reviewMatch ? (
+        <Container maxWidth="md" sx={{ py: 4 }}>
+          <SummaryScreen
+            match={reviewMatch}
+            mode="review"
+            onClose={() => setHistoryViewId(null)}
+          />
         </Container>
       ) : (
         <>
@@ -78,7 +104,11 @@ function App() {
               />
             )}
             {homeView === 'history' && (
-              <Typography>Match history is coming in a future update.</Typography>
+              <HistoryScreen
+                history={api.history}
+                onReview={(id) => setHistoryViewId(id)}
+                onDelete={api.removeFromHistory}
+              />
             )}
           </Container>
         </>
