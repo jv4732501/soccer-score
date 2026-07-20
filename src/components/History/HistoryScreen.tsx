@@ -20,6 +20,9 @@ export interface HistoryScreenProps {
 }
 
 function result(match: Match): string {
+  if (match.shootout?.winner) {
+    return match.shootout.winner === match.homeTeam ? 'W' : 'L';
+  }
   const homeScore = match.score[match.homeTeam];
   const awayTeam = match.homeTeam === 'teamA' ? 'teamB' : 'teamA';
   const awayScore = match.score[awayTeam];
@@ -57,7 +60,11 @@ export function HistoryScreen({ history, onReview, onDelete }: HistoryScreenProp
             >
               <ListItemText
                 primary={`${match.teamA.name} vs ${match.teamB.name}`}
-                secondary={`${match.date ? new Date(match.date).toLocaleDateString() : ''} · ${match.score.teamA}–${match.score.teamB} ${result(match)}`}
+                secondary={
+                  match.date
+                    ? `${new Date(match.date).toLocaleDateString()} · ${match.score.teamA}–${match.score.teamB} ${result(match)}`
+                    : `${match.score.teamA}–${match.score.teamB} ${result(match)}`
+                }
               />
             </ListItem>
           ))}
