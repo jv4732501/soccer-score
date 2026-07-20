@@ -60,4 +60,52 @@ describe('PlayerRow', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Sub Out' }));
     expect(onSubOut).toHaveBeenCalledTimes(1);
   });
+
+  it('closes the Stats menu after selecting a stat', async () => {
+    render(
+      <PlayerRow
+        player={player()}
+        onRecordStat={vi.fn()}
+        onRecordCard={vi.fn()}
+        onSubIn={vi.fn()}
+        onSubOut={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Stats' }));
+    expect(screen.getByRole('menuitem', { name: 'Goal' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Goal' }));
+    expect(screen.queryByRole('menuitem', { name: 'Goal' })).not.toBeInTheDocument();
+  });
+
+  it('subs in a bench player and closes the Sub menu', async () => {
+    const onSubIn = vi.fn();
+    render(
+      <PlayerRow
+        player={player({ onField: false })}
+        onRecordStat={vi.fn()}
+        onRecordCard={vi.fn()}
+        onSubIn={onSubIn}
+        onSubOut={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Sub' }));
+    expect(screen.getByRole('menuitem', { name: 'Sub In' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Sub In' }));
+    expect(onSubIn).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('menuitem', { name: 'Sub In' })).not.toBeInTheDocument();
+  });
+
+  it('keeps Sub menu closed when Stats menu is open', async () => {
+    render(
+      <PlayerRow
+        player={player()}
+        onRecordStat={vi.fn()}
+        onRecordCard={vi.fn()}
+        onSubIn={vi.fn()}
+        onSubOut={vi.fn()}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Stats' }));
+    expect(screen.queryByRole('menuitem', { name: 'Sub Out' })).not.toBeInTheDocument();
+  });
 });
