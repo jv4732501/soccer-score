@@ -165,7 +165,7 @@ export function addExtraTime(match: Match, nowMs: number): Match {
 export function endGame(match: Match, nowMs: number): Match {
   let m = stopClock(match, nowMs);
   m = closeOutAccrual(m);
-  m = snapshotPeriod(m);
+  if (m.screen !== 'shootout') m = snapshotPeriod(m);
   m.screen = 'summary';
   m.date = nowMs;
   m = appendLog(m, {

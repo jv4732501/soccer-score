@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { newMatch, adjustScore, snapshotPeriod, endHalf, addExtraTime, endGame } from './match';
 import { subIn, subOut, setPossession } from './stats';
 import { startClock } from './clock';
+import { startShootout } from './shootout';
 import type { SavedTeam } from './types';
 
 function savedTeam(id: string, name: string): SavedTeam {
@@ -160,5 +161,16 @@ describe('endGame', () => {
     expect(m.screen).toBe('summary');
     expect(m.date).toBe(123456);
     expect(m.periodScores).toEqual([{ teamA: 0, teamB: 3 }]);
+  });
+  it('does not push a duplicate periodScores entry when the match already went through a shootout', () => {
+    let m = makeStartingMatch();
+    m = endHalf(m, 0); // period 1 -> 2 (1st snapshot)
+    m = addExtraTime(m, 0); // period 2 -> ET1 (2nd snapshot)
+    m = addExtraTime(m, 0); // ET1 -> ET2 (3rd snapshot)
+    m = startShootout(m, 0); // snapshots the regulation/ET score before penalties (4th snapshot)
+    expect(m.periodScores).toHaveLength(4);
+    m = endGame(m, 0);
+    // endGame must NOT push a 5th, redundant snapshot -- the shootout already captured the final score
+    expect(m.periodScores).toHaveLength(4);
   });
 });
