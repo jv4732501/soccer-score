@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Clock } from './Clock';
 
 describe('Clock', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('displays the formatted elapsed time and toggles on click', async () => {
     const onToggleClock = vi.fn();
     render(
@@ -63,12 +67,11 @@ describe('Clock', () => {
     // After advancing 5 seconds, displayed time should be 0:05
     expect(screen.getByText('0:05')).toBeInTheDocument();
 
-    // Unmount and verify cleanup works without errors
-    unmount();
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
+    // Verify interval is active before unmount
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
 
-    vi.useRealTimers();
+    // Unmount and verify interval is cleared
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
