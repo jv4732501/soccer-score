@@ -20,6 +20,7 @@ import {
   deserialize,
   upsertTeam,
   removeTeam,
+  upsertHistory,
   removeFromHistory,
   buildBackup,
   validateBackup,
@@ -45,6 +46,8 @@ interface HookState {
 type Action =
   | { type: 'APPLY_MATCH'; fn: (match: Match) => Match }
   | { type: 'START_MATCH'; args: Parameters<typeof newMatch>[0] }
+  | { type: 'END_GAME'; nowMs: number }
+  | { type: 'CLEAR_MATCH' }
   | { type: 'SET_THEME'; theme: 'dark' | 'light' }
   | { type: 'UPSERT_TEAM'; team: SavedTeam }
   | { type: 'REMOVE_TEAM'; id: string }
@@ -57,6 +60,13 @@ function reducer(state: HookState, action: Action): HookState {
       return state.match ? { ...state, match: action.fn(state.match) } : state;
     case 'START_MATCH':
       return { ...state, match: newMatch(action.args) };
+    case 'END_GAME': {
+      if (!state.match) return state;
+      const finished = endGame(state.match, action.nowMs);
+      return { ...state, match: finished, history: upsertHistory(state.history, finished) };
+    }
+    case 'CLEAR_MATCH':
+      return { ...state, match: null };
     case 'SET_THEME':
       return { ...state, theme: action.theme };
     case 'UPSERT_TEAM':
@@ -91,6 +101,7 @@ export interface MatchHookApi extends HookState {
   endHalf: () => void;
   addExtraTime: () => void;
   endGame: () => void;
+  closeMatch: () => void;
   startShootout: () => void;
   undo: () => void;
   adjustScore: (team: TeamKey, delta: number) => void;
@@ -145,7 +156,11 @@ export function useMatch(): MatchHookApi {
   }, []);
 
   const endGameApi = useCallback(() => {
-    dispatch({ type: 'APPLY_MATCH', fn: (m) => endGame(m, Date.now()) });
+    dispatch({ type: 'END_GAME', nowMs: Date.now() });
+  }, []);
+
+  const closeMatchApi = useCallback(() => {
+    dispatch({ type: 'CLEAR_MATCH' });
   }, []);
 
   const startShootoutApi = useCallback(() => {
@@ -269,6 +284,7 @@ export function useMatch(): MatchHookApi {
     endHalf: endHalfApi,
     addExtraTime: addExtraTimeApi,
     endGame: endGameApi,
+    closeMatch: closeMatchApi,
     startShootout: startShootoutApi,
     undo: undoApi,
     adjustScore: adjustScoreApi,

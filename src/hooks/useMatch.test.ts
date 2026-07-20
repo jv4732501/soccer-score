@@ -68,6 +68,25 @@ describe('useMatch', () => {
     expect(result.current.match?.score.teamA).toBe(0);
   });
 
+  it('endGame archives the finished match into history', () => {
+    const { result } = renderHook(() => useMatch());
+    act(() => result.current.startMatch(startArgs()));
+    const matchId = result.current.match!.id;
+    act(() => result.current.endGame());
+    expect(result.current.match?.screen).toBe('summary');
+    expect(result.current.history).toHaveLength(1);
+    expect(result.current.history[0].id).toBe(matchId);
+  });
+
+  it('closeMatch clears the active match without touching history', () => {
+    const { result } = renderHook(() => useMatch());
+    act(() => result.current.startMatch(startArgs()));
+    act(() => result.current.endGame());
+    act(() => result.current.closeMatch());
+    expect(result.current.match).toBeNull();
+    expect(result.current.history).toHaveLength(1);
+  });
+
   it('upsertTeam and removeTeam manage the saved-team library and persist it', () => {
     const { result } = renderHook(() => useMatch());
     act(() => result.current.upsertTeam(teamA));
