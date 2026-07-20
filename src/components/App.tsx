@@ -8,6 +8,9 @@ import { useMatch } from '../hooks/useMatch';
 import { Nav } from './Nav';
 import type { HomeView } from './Nav';
 import { TeamsScreen } from './Teams/TeamsScreen';
+import { SetupScreen } from './Setup/SetupScreen';
+import { GameScreen } from './Game/GameScreen';
+import { ShootoutScreen } from './Shootout/ShootoutScreen';
 
 function App() {
   const api = useMatch();
@@ -17,11 +20,39 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      {api.match ? (
+      {api.match && api.match.screen === 'game' ? (
         <Container maxWidth="md" sx={{ py: 4 }}>
-          <Typography>
-            A match is in progress. Resuming and playing a match arrive in the next update.
-          </Typography>
+          <GameScreen
+            match={api.match}
+            onAdjustScore={api.adjustScore}
+            onRecordPlayerStat={api.recordPlayerStat}
+            onRecordCard={api.recordCard}
+            onRecordCorner={api.recordCorner}
+            onRecordOffside={api.recordOffside}
+            onSubIn={api.subIn}
+            onSubOut={api.subOut}
+            onSetPossession={api.setPossession}
+            onRecordStoppage={api.recordStoppage}
+            onToggleClock={api.toggleClock}
+            onEndHalf={api.endHalf}
+            onAddExtraTime={api.addExtraTime}
+            onEndGame={api.endGame}
+            onStartShootout={api.startShootout}
+            onUndo={api.undo}
+          />
+        </Container>
+      ) : api.match && api.match.screen === 'shootout' ? (
+        <Container maxWidth="md" sx={{ py: 4 }}>
+          <ShootoutScreen
+            match={api.match}
+            onRecordAttempt={api.recordAttempt}
+            onUndo={api.undo}
+            onEndGame={api.endGame}
+          />
+        </Container>
+      ) : api.match ? (
+        <Container maxWidth="md" sx={{ py: 4 }}>
+          <Typography>Match summary is coming in the next update.</Typography>
         </Container>
       ) : (
         <>
@@ -39,7 +70,12 @@ function App() {
               />
             )}
             {homeView === 'setup' && (
-              <Typography>Match setup is coming in the next update.</Typography>
+              <SetupScreen
+                savedTeams={api.savedTeams}
+                onStartMatch={api.startMatch}
+                onExportBackup={api.exportBackup}
+                onImportBackup={api.importBackup}
+              />
             )}
             {homeView === 'history' && (
               <Typography>Match history is coming in a future update.</Typography>
