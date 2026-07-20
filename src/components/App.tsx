@@ -74,11 +74,7 @@ function App() {
         </Container>
       ) : reviewMatch ? (
         <Container maxWidth="md" sx={{ py: 4 }}>
-          <SummaryScreen
-            match={reviewMatch}
-            mode="review"
-            onClose={() => setHistoryViewId(null)}
-          />
+          <SummaryScreen match={reviewMatch} mode="review" onClose={() => setHistoryViewId(null)} />
         </Container>
       ) : (
         <>
