@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useReducer } from 'react';
-import type { Match, SavedTeam, TeamKey } from '../logic/types';
-import type { PlayerStatField } from '../logic/stats';
+import type { Match, MatchConfig, SavedTeam, TeamKey } from '../logic/types';
+import type { PlayerStatField, TeamStatField, SharedStatField } from '../logic/stats';
 import type { AppState, MergeSummary } from '../logic/persistence';
-import { newMatch, adjustScore, endHalf, addExtraTime, endGame } from '../logic/match';
-import { toggleClock, recordStoppage } from '../logic/clock';
+import { newMatch, adjustScore, addPlayer, endHalf, addExtraTime, endGame, updateConfig } from '../logic/match';
+import { teamOf, makeId } from '../logic/log';
+import {
+  toggleClock,
+  recordStoppage,
+  adjustClock,
+  toggleStoppageWatch,
+  stopStoppageWatch,
+} from '../logic/clock';
 import {
   recordPlayerStat,
   recordCard,
   recordCorner,
   recordOffside,
+  recordTeamStat,
+  recordAttributedTeamStat,
   subIn,
   subOut,
   setPossession,
@@ -25,6 +34,8 @@ import {
   buildBackup,
   validateBackup,
   mergeBackup,
+  migrateMatch,
+  migrateHistory,
 } from '../logic/persistence';
 
 export type ImportSummary = MergeSummary;
@@ -46,6 +57,7 @@ interface HookState {
 type Action =
   | { type: 'APPLY_MATCH'; fn: (match: Match) => Match }
   | { type: 'START_MATCH'; args: Parameters<typeof newMatch>[0] }
+  | { type: 'ADD_PLAYER'; team: TeamKey; id: string; num: number; name: string }
   | { type: 'END_GAME'; nowMs: number }
   | { type: 'CLEAR_MATCH' }
   | { type: 'SET_THEME'; theme: 'dark' | 'light' }
@@ -60,6 +72,31 @@ function reducer(state: HookState, action: Action): HookState {
       return state.match ? { ...state, match: action.fn(state.match) } : state;
     case 'START_MATCH':
       return { ...state, match: newMatch(action.args) };
+    case 'ADD_PLAYER': {
+      if (!state.match) return state;
+      const match = addPlayer(state.match, action.team, {
+        id: action.id,
+        num: action.num,
+        name: action.name,
+      });
+      const savedTeamId = teamOf(match, action.team).id;
+      const idx = state.savedTeams.findIndex((t) => t.id === savedTeamId);
+      const savedTeams =
+        idx >= 0
+          ? state.savedTeams.map((t, i) =>
+              i === idx
+                ? {
+                    ...t,
+                    players: [
+                      ...t.players,
+                      { id: action.id, num: action.num, name: action.name, starter: false, position: null },
+                    ],
+                  }
+                : t,
+            )
+          : state.savedTeams;
+      return { ...state, match, savedTeams };
+    }
     case 'END_GAME': {
       if (!state.match) return state;
       const finished = endGame(state.match, action.nowMs);
@@ -89,8 +126,9 @@ function reducer(state: HookState, action: Action): HookState {
 
 function loadInitialState(): HookState {
   const savedTeams = deserialize<SavedTeam[]>(localStorage.getItem(KEYS.teams)) ?? [];
-  const match = deserialize<Match>(localStorage.getItem(KEYS.match));
-  const history = deserialize<Match[]>(localStorage.getItem(KEYS.history)) ?? [];
+  const rawMatch = deserialize<Match>(localStorage.getItem(KEYS.match));
+  const match = rawMatch ? migrateMatch(rawMatch) : null;
+  const history = migrateHistory(deserialize<Match[]>(localStorage.getItem(KEYS.history)) ?? []);
   const rawTheme = localStorage.getItem(KEYS.theme);
   const theme: 'dark' | 'light' = rawTheme === 'light' ? 'light' : 'dark';
   return { match, savedTeams, history, theme };
@@ -98,6 +136,7 @@ function loadInitialState(): HookState {
 
 export interface MatchHookApi extends HookState {
   startMatch: (args: Parameters<typeof newMatch>[0]) => void;
+  addPlayer: (team: TeamKey, num: number, name: string) => void;
   endHalf: () => void;
   addExtraTime: () => void;
   endGame: () => void;
@@ -109,11 +148,17 @@ export interface MatchHookApi extends HookState {
   recordCard: (team: TeamKey, playerId: string | null, color: 'yellow' | 'red') => void;
   recordCorner: (team: TeamKey) => void;
   recordOffside: (team: TeamKey) => void;
-  subIn: (team: TeamKey, playerId: string) => void;
+  recordTeamStat: (team: TeamKey, stat: TeamStatField) => void;
+  recordAttributedTeamStat: (team: TeamKey, playerId: string, stat: SharedStatField) => void;
+  subIn: (team: TeamKey, playerId: string, position?: number | null) => void;
   subOut: (team: TeamKey, playerId: string) => void;
   setPossession: (team: TeamKey) => void;
   recordStoppage: (addedSec: number) => void;
   toggleClock: () => void;
+  adjustClock: (deltaSec: number) => void;
+  toggleStoppageWatch: () => void;
+  stopStoppageWatch: () => void;
+  updateConfig: (patch: Partial<MatchConfig>) => void;
   recordAttempt: (team: TeamKey, scored: boolean) => void;
   upsertTeam: (team: SavedTeam) => void;
   removeTeam: (id: string) => void;
@@ -145,6 +190,10 @@ export function useMatch(): MatchHookApi {
 
   const startMatch = useCallback((args: Parameters<typeof newMatch>[0]) => {
     dispatch({ type: 'START_MATCH', args });
+  }, []);
+
+  const addPlayerApi = useCallback((team: TeamKey, num: number, name: string) => {
+    dispatch({ type: 'ADD_PLAYER', team, id: makeId(), num, name });
   }, []);
 
   const endHalfApi = useCallback(() => {
@@ -203,8 +252,22 @@ export function useMatch(): MatchHookApi {
     dispatch({ type: 'APPLY_MATCH', fn: (m) => recordOffside(m, team, Date.now()) });
   }, []);
 
-  const subInApi = useCallback((team: TeamKey, playerId: string) => {
-    dispatch({ type: 'APPLY_MATCH', fn: (m) => subIn(m, team, playerId, Date.now()) });
+  const recordTeamStatApi = useCallback((team: TeamKey, stat: TeamStatField) => {
+    dispatch({ type: 'APPLY_MATCH', fn: (m) => recordTeamStat(m, team, stat, Date.now()) });
+  }, []);
+
+  const recordAttributedTeamStatApi = useCallback(
+    (team: TeamKey, playerId: string, stat: SharedStatField) => {
+      dispatch({
+        type: 'APPLY_MATCH',
+        fn: (m) => recordAttributedTeamStat(m, team, playerId, stat, Date.now()),
+      });
+    },
+    [],
+  );
+
+  const subInApi = useCallback((team: TeamKey, playerId: string, position?: number | null) => {
+    dispatch({ type: 'APPLY_MATCH', fn: (m) => subIn(m, team, playerId, Date.now(), position) });
   }, []);
 
   const subOutApi = useCallback((team: TeamKey, playerId: string) => {
@@ -221,6 +284,22 @@ export function useMatch(): MatchHookApi {
 
   const toggleClockApi = useCallback(() => {
     dispatch({ type: 'APPLY_MATCH', fn: (m) => toggleClock(m, Date.now()) });
+  }, []);
+
+  const adjustClockApi = useCallback((deltaSec: number) => {
+    dispatch({ type: 'APPLY_MATCH', fn: (m) => adjustClock(m, deltaSec, Date.now()) });
+  }, []);
+
+  const toggleStoppageWatchApi = useCallback(() => {
+    dispatch({ type: 'APPLY_MATCH', fn: (m) => toggleStoppageWatch(m, Date.now()) });
+  }, []);
+
+  const stopStoppageWatchApi = useCallback(() => {
+    dispatch({ type: 'APPLY_MATCH', fn: (m) => stopStoppageWatch(m, Date.now()) });
+  }, []);
+
+  const updateConfigApi = useCallback((patch: Partial<MatchConfig>) => {
+    dispatch({ type: 'APPLY_MATCH', fn: (m) => updateConfig(m, patch) });
   }, []);
 
   const recordAttemptApi = useCallback((team: TeamKey, scored: boolean) => {
@@ -281,6 +360,7 @@ export function useMatch(): MatchHookApi {
   return {
     ...state,
     startMatch,
+    addPlayer: addPlayerApi,
     endHalf: endHalfApi,
     addExtraTime: addExtraTimeApi,
     endGame: endGameApi,
@@ -292,11 +372,17 @@ export function useMatch(): MatchHookApi {
     recordCard: recordCardApi,
     recordCorner: recordCornerApi,
     recordOffside: recordOffsideApi,
+    recordTeamStat: recordTeamStatApi,
+    recordAttributedTeamStat: recordAttributedTeamStatApi,
     subIn: subInApi,
     subOut: subOutApi,
     setPossession: setPossessionApi,
     recordStoppage: recordStoppageApi,
     toggleClock: toggleClockApi,
+    adjustClock: adjustClockApi,
+    toggleStoppageWatch: toggleStoppageWatchApi,
+    stopStoppageWatch: stopStoppageWatchApi,
+    updateConfig: updateConfigApi,
     recordAttempt: recordAttemptApi,
     upsertTeam: upsertTeamApi,
     removeTeam: removeTeamApi,

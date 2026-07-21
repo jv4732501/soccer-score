@@ -8,19 +8,19 @@ const teamA: SavedTeam = {
   id: 'teamA-1',
   name: 'Lions',
   players: [
-    { id: 'p1', num: 9, name: 'Alex', starter: true, goalkeeper: false },
-    { id: 'p2', num: 1, name: 'Sam', starter: true, goalkeeper: true },
+    { id: 'p1', num: 9, name: 'Alex', starter: true, position: null },
+    { id: 'p2', num: 1, name: 'Sam', starter: true, position: 1 },
   ],
 };
 const teamB: SavedTeam = {
   id: 'teamB-1',
   name: 'Tigers',
-  players: [{ id: 'p3', num: 7, name: 'Jo', starter: true, goalkeeper: false }],
+  players: [{ id: 'p3', num: 7, name: 'Jo', starter: true, position: null }],
 };
 
 function startArgs() {
   return {
-    config: { halfLengthMin: 30, hasExtraTime: false, extraTimeLengthMin: 10, hasShootout: false },
+    config: { halfLengthMin: 30, hasExtraTime: false, extraTimeLengthMin: 10, hasShootout: false, hasStoppageTime: false },
     teamA,
     activeIdsA: ['p1', 'p2'],
     collapsedA: false,
@@ -85,6 +85,34 @@ describe('useMatch', () => {
     act(() => result.current.closeMatch());
     expect(result.current.match).toBeNull();
     expect(result.current.history).toHaveLength(1);
+  });
+
+  it('addPlayer appends a bench player to the in-progress match', () => {
+    const { result } = renderHook(() => useMatch());
+    act(() => result.current.startMatch(startArgs()));
+    act(() => result.current.addPlayer('teamA', 22, 'Rookie'));
+    const players = result.current.match!.teamA.players;
+    const added = players[players.length - 1];
+    expect(added.num).toBe(22);
+    expect(added.name).toBe('Rookie');
+    expect(added.starter).toBe(false);
+    expect(added.onField).toBe(false);
+  });
+
+  it('addPlayer also appends to the backing saved team, when one exists', () => {
+    const { result } = renderHook(() => useMatch());
+    act(() => result.current.upsertTeam(teamA));
+    act(() => result.current.startMatch(startArgs()));
+    act(() => result.current.addPlayer('teamA', 22, 'Rookie'));
+    const savedA = result.current.savedTeams.find((t) => t.id === teamA.id)!;
+    expect(savedA.players.some((p) => p.num === 22 && p.name === 'Rookie')).toBe(true);
+  });
+
+  it('addPlayer does not touch savedTeams when the match team is not backed by a saved team', () => {
+    const { result } = renderHook(() => useMatch());
+    act(() => result.current.startMatch(startArgs())); // teamA/teamB not saved via upsertTeam
+    act(() => result.current.addPlayer('teamA', 22, 'Rookie'));
+    expect(result.current.savedTeams).toEqual([]);
   });
 
   it('upsertTeam and removeTeam manage the saved-team library and persist it', () => {

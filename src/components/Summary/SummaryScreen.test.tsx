@@ -9,17 +9,17 @@ import type { SavedTeam } from '../../logic/types';
 const teamA: SavedTeam = {
   id: 'a1',
   name: 'Lions',
-  players: [{ id: 'p1', num: 9, name: 'Alex', starter: true, goalkeeper: false }],
+  players: [{ id: 'p1', num: 9, name: 'Alex', starter: true, position: null }],
 };
 const teamB: SavedTeam = {
   id: 'b1',
   name: 'Tigers',
-  players: [{ id: 'p2', num: 7, name: 'Jo', starter: true, goalkeeper: false }],
+  players: [{ id: 'p2', num: 7, name: 'Jo', starter: true, position: null }],
 };
 
 function finishedMatch() {
   let m = newMatch({
-    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false },
+    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false, hasStoppageTime: false },
     teamA,
     activeIdsA: ['p1'],
     collapsedA: false,
@@ -36,7 +36,7 @@ function finishedMatch() {
 
 function shootoutMatch() {
   let m = newMatch({
-    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: true },
+    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: true, hasStoppageTime: false },
     teamA,
     activeIdsA: ['p1'],
     collapsedA: false,
@@ -61,7 +61,7 @@ function shootoutMatch() {
 
 function collapsedTeamMatch() {
   let m = newMatch({
-    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false },
+    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false, hasStoppageTime: false },
     teamA,
     activeIdsA: [],
     collapsedA: true,
@@ -87,6 +87,27 @@ describe('SummaryScreen', () => {
   it('renders a Back to History button in review mode', () => {
     render(<SummaryScreen match={finishedMatch()} mode="review" onClose={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Back to History' })).toBeInTheDocument();
+  });
+
+  it('renders a live snapshot of an in-progress match with a Back to Game button', () => {
+    let m = newMatch({
+      config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false, hasStoppageTime: false },
+      teamA,
+      activeIdsA: ['p1'],
+      collapsedA: false,
+      teamB,
+      activeIdsB: ['p2'],
+      collapsedB: false,
+      homeTeam: 'teamA',
+    });
+    m = adjustScore(m, 'teamA', 1, 0);
+    expect(m.screen).toBe('game'); // still being played, not finished
+
+    render(<SummaryScreen match={m} mode="inprogress" onClose={vi.fn()} />);
+
+    expect(screen.getByText(/Current: Lions 1 – 0 Tigers/)).toBeInTheDocument();
+    expect(screen.queryByText(/Final:/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to Game' })).toBeInTheDocument();
   });
 
   it('renders the period table and penalty result correctly for a shootout-decided match', () => {

@@ -6,7 +6,7 @@ export interface SavedPlayer {
   num: number;
   name: string;
   starter: boolean;
-  goalkeeper: boolean;
+  position: number | null;
 }
 
 export interface SavedTeam {
@@ -40,6 +40,12 @@ export interface Team {
   offsides: number;
   yellowCards: number;
   redCards: number;
+  assists: number;
+  shotsOnGoal: number;
+  targetsOnGoal: number;
+  tackles: number;
+  foulsCommitted: number;
+  saves: number;
 }
 
 export interface ClockState {
@@ -64,6 +70,7 @@ export interface MatchConfig {
   hasExtraTime: boolean;
   extraTimeLengthMin: number;
   hasShootout: boolean;
+  hasStoppageTime: boolean;
 }
 
 export interface Match {
@@ -75,6 +82,7 @@ export interface Match {
   homeTeam: TeamKey;
   period: Period;
   clock: ClockState;
+  stoppageWatch: ClockState;
   stoppage: Partial<Record<Period, number>>;
   score: Record<TeamKey, number>;
   possession: PossessionState;
@@ -98,10 +106,12 @@ export interface LogEntry {
 
 export type RevEntry =
   | { kind: 'score'; team: TeamKey; score: number }
-  | { kind: 'stat'; team: TeamKey; playerId: string | null; fields: Record<string, number>; score: number }
+  | { kind: 'stat'; team: TeamKey; playerId: string | null; fields: Record<string, number>; teamFields: Record<string, number>; score: number }
   | { kind: 'card'; team: TeamKey; playerId: string | null; yellow: number; red: number; sentOffPrev: boolean }
-  | { kind: 'sub'; team: TeamKey; playerId: string; onField: boolean; inClock: number | null; fieldSecsDelta: number }
+  | { kind: 'sub'; team: TeamKey; playerId: string; onField: boolean; inClock: number | null; fieldSecsDelta: number; positionPrev: number | null }
   | { kind: 'possession'; prev: TeamKey | null; prevSince: number | null; accumSecDelta: Partial<Record<TeamKey, number>> }
   | { kind: 'corner' | 'offside'; team: TeamKey; delta: number }
+  | { kind: 'teamStat'; team: TeamKey; stat: string; delta: number }
+  | { kind: 'attributedTeamStat'; team: TeamKey; playerId: string; stat: string; delta: number }
   | { kind: 'stoppage'; period: Period; prev: number | undefined }
   | { kind: 'shootoutAttempt' };

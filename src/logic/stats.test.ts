@@ -1,24 +1,39 @@
 import { describe, it, expect } from 'vitest';
-import { recordPlayerStat, recordCard, recordCorner, recordOffside, subIn, subOut, setPossession } from './stats';
+import {
+  recordPlayerStat,
+  recordCard,
+  recordCorner,
+  recordOffside,
+  recordTeamStat,
+  recordAttributedTeamStat,
+  subIn,
+  subOut,
+  setPossession,
+} from './stats';
 import type { Match } from './types';
 
 function matchWithPlayer(): Match {
   return {
     id: 'm1',
     screen: 'game',
-    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false },
+    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false, hasStoppageTime: false },
     teamA: {
       id: 'a', name: 'Alpha', collapsed: false, goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0,
+      assists: 0, shotsOnGoal: 0, targetsOnGoal: 0, tackles: 0, foulsCommitted: 0, saves: 0,
       players: [{
-        id: 'p1', num: 9, name: 'Sam', starter: true, goalkeeper: false,
+        id: 'p1', num: 9, name: 'Sam', starter: true, position: null,
         onField: true, inClock: 0, fieldSecs: 0, goals: 0, assists: 0, shotsOnGoal: 0,
         tackles: 0, foulsCommitted: 0, saves: 0, yellowCards: 0, redCards: 0, sentOff: false,
       }],
     },
-    teamB: { id: 'b', name: 'Beta', collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0 },
+    teamB: {
+      id: 'b', name: 'Beta', collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0,
+      assists: 0, shotsOnGoal: 0, targetsOnGoal: 0, tackles: 0, foulsCommitted: 0, saves: 0,
+    },
     homeTeam: 'teamA',
     period: 1,
     clock: { elapsedSec: 600, running: false, startedAt: null },
+    stoppageWatch: { elapsedSec: 0, running: false, startedAt: null },
     stoppage: {},
     score: { teamA: 0, teamB: 0 },
     possession: { current: null, since: null, accumSec: { teamA: 0, teamB: 0 } },
@@ -47,7 +62,30 @@ describe('recordPlayerStat', () => {
     const m = recordPlayerStat(matchWithPlayer(), 'teamA', 'p1', 'shotsOnGoal', 0);
     expect(m.log).toHaveLength(1);
     expect(m.log[0].detail).toContain('#9 Sam');
-    expect(m.log[0].rev).toEqual({ kind: 'stat', team: 'teamA', playerId: 'p1', fields: { shotsOnGoal: 1 }, score: 0 });
+    expect(m.log[0].rev).toEqual({
+      kind: 'stat',
+      team: 'teamA',
+      playerId: 'p1',
+      fields: { shotsOnGoal: 1 },
+      teamFields: { shotsOnGoal: 1 },
+      score: 0,
+    });
+  });
+  it('also increments the matching team-level total for shared stat fields', () => {
+    const m = recordPlayerStat(matchWithPlayer(), 'teamA', 'p1', 'tackles', 0);
+    expect(m.teamA.players[0].tackles).toBe(1);
+    expect(m.teamA.tackles).toBe(1);
+  });
+  it('does not touch any team-level field when recording a goal (goals have no team-level counterpart)', () => {
+    const m = recordPlayerStat(matchWithPlayer(), 'teamA', 'p1', 'goals', 0);
+    expect(m.log[0].rev).toEqual({
+      kind: 'stat',
+      team: 'teamA',
+      playerId: 'p1',
+      fields: { goals: 1 },
+      teamFields: {},
+      score: 1,
+    });
   });
   it('is a no-op when the player does not exist', () => {
     const original = matchWithPlayer();
@@ -120,6 +158,50 @@ describe('recordCorner / recordOffside', () => {
   });
 });
 
+describe('recordTeamStat', () => {
+  it('increments the given team-level stat field and logs it', () => {
+    const m = recordTeamStat(matchWithPlayer(), 'teamA', 'assists', 0);
+    expect(m.teamA.assists).toBe(1);
+    expect(m.log[0].detail).toBe('Alpha assist');
+    expect(m.log[0].rev).toEqual({ kind: 'teamStat', team: 'teamA', stat: 'assists', delta: 1 });
+  });
+
+  it('supports targetsOnGoal as distinct from shotsOnGoal', () => {
+    const m = recordTeamStat(matchWithPlayer(), 'teamA', 'targetsOnGoal', 0);
+    expect(m.teamA.targetsOnGoal).toBe(1);
+    expect(m.teamA.shotsOnGoal).toBe(0);
+    expect(m.log[0].detail).toBe('Alpha target on goal');
+  });
+
+  it('does not affect any player-level stat', () => {
+    const m = recordTeamStat(matchWithPlayer(), 'teamA', 'tackles', 0);
+    expect(m.teamA.tackles).toBe(1);
+    expect(m.teamA.players[0].tackles).toBe(0);
+  });
+});
+
+describe('recordAttributedTeamStat', () => {
+  it('increments both the player-level and team-level fields in one action', () => {
+    const m = recordAttributedTeamStat(matchWithPlayer(), 'teamA', 'p1', 'assists', 0);
+    expect(m.teamA.assists).toBe(1);
+    expect(m.teamA.players[0].assists).toBe(1);
+    expect(m.log[0].detail).toContain('#9 Sam');
+    expect(m.log[0].rev).toEqual({
+      kind: 'attributedTeamStat',
+      team: 'teamA',
+      playerId: 'p1',
+      stat: 'assists',
+      delta: 1,
+    });
+  });
+
+  it('is a no-op when the player does not exist', () => {
+    const original = matchWithPlayer();
+    const m = recordAttributedTeamStat(original, 'teamA', 'nope', 'assists', 0);
+    expect(m).toBe(original);
+  });
+});
+
 function matchWithBenchedPlayer(): Match {
   const m = matchWithPlayer();
   m.teamA.players[0].onField = false;
@@ -132,6 +214,22 @@ describe('subIn / subOut', () => {
     const m = subIn(matchWithBenchedPlayer(), 'teamA', 'p1', 600000);
     expect(m.teamA.players[0].onField).toBe(true);
     expect(m.teamA.players[0].inClock).toBe(600);
+  });
+  it('subIn sets the position when one is given', () => {
+    const m = subIn(matchWithBenchedPlayer(), 'teamA', 'p1', 600000, 9);
+    expect(m.teamA.players[0].position).toBe(9);
+  });
+  it('logs the position abbreviation when subbing in with a position', () => {
+    const m = subIn(matchWithBenchedPlayer(), 'teamA', 'p1', 600000, 9);
+    expect(m.log[0].detail).toBe('#9 Sam subs in as CF');
+  });
+  it('logs a plain sub-in message when no position is given', () => {
+    const m = subIn(matchWithBenchedPlayer(), 'teamA', 'p1', 600000);
+    expect(m.log[0].detail).toBe('#9 Sam subs in');
+  });
+  it('subIn leaves position untouched when none is given', () => {
+    const m = subIn(matchWithBenchedPlayer(), 'teamA', 'p1', 600000);
+    expect(m.teamA.players[0].position).toBeNull();
   });
   it('subIn is a no-op if the player is already on field', () => {
     const original = matchWithPlayer(); // p1 already onField from the fixture
@@ -158,11 +256,15 @@ describe('subIn / subOut', () => {
   });
   it('subOut logs a rev with enough to undo the accrual', () => {
     const m = subOut(matchWithPlayer(), 'teamA', 'p1', 600000);
-    expect(m.log[0].rev).toEqual({ kind: 'sub', team: 'teamA', playerId: 'p1', onField: true, inClock: 0, fieldSecsDelta: 600 });
+    expect(m.log[0].rev).toEqual({
+      kind: 'sub', team: 'teamA', playerId: 'p1', onField: true, inClock: 0, fieldSecsDelta: 600, positionPrev: null,
+    });
   });
-  it('subIn logs a rev entry sufficient to undo (onField/inClock reset to false/null)', () => {
-    const m = subIn(matchWithBenchedPlayer(), 'teamA', 'p1', 600000);
-    expect(m.log[0].rev).toEqual({ kind: 'sub', team: 'teamA', playerId: 'p1', onField: false, inClock: null, fieldSecsDelta: 0 });
+  it('subIn logs a rev entry sufficient to undo (onField/inClock reset to false/null, position restored)', () => {
+    const m = subIn(matchWithBenchedPlayer(), 'teamA', 'p1', 600000, 9);
+    expect(m.log[0].rev).toEqual({
+      kind: 'sub', team: 'teamA', playerId: 'p1', onField: false, inClock: null, fieldSecsDelta: 0, positionPrev: null,
+    });
   });
 });
 

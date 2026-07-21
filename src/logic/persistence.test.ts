@@ -1,5 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { serialize, deserialize, isResumable, upsertTeam, removeTeam, upsertHistory, removeFromHistory, buildBackup, validateBackup, mergeBackup } from './persistence';
+import {
+  serialize,
+  deserialize,
+  isResumable,
+  upsertTeam,
+  removeTeam,
+  upsertHistory,
+  removeFromHistory,
+  buildBackup,
+  validateBackup,
+  mergeBackup,
+  migrateMatch,
+  migrateHistory,
+} from './persistence';
 import type { Match, SavedTeam } from './types';
 import type { AppState } from './persistence';
 
@@ -70,6 +83,68 @@ describe('upsertHistory / removeFromHistory', () => {
     history = upsertHistory(history, match('m2'));
     history = removeFromHistory(history, 'm1');
     expect(history.map((m) => m.id)).toEqual(['m2']);
+  });
+});
+
+describe('migrateMatch', () => {
+  it('fills missing team-level stat fields with 0, preserving existing values', () => {
+    const oldMatch = {
+      id: 'm1',
+      screen: 'game',
+      teamA: {
+        id: 'a', name: 'Alpha', collapsed: false, players: [], goalkeeperId: null,
+        corners: 2, offsides: 1, yellowCards: 0, redCards: 0,
+      },
+      teamB: {
+        id: 'b', name: 'Beta', collapsed: false, players: [], goalkeeperId: null,
+        corners: 0, offsides: 0, yellowCards: 0, redCards: 0,
+      },
+    } as unknown as Match;
+
+    const m = migrateMatch(oldMatch);
+
+    expect(m.teamA.assists).toBe(0);
+    expect(m.teamA.shotsOnGoal).toBe(0);
+    expect(m.teamA.targetsOnGoal).toBe(0);
+    expect(m.teamA.tackles).toBe(0);
+    expect(m.teamA.foulsCommitted).toBe(0);
+    expect(m.teamA.saves).toBe(0);
+    expect(m.teamA.corners).toBe(2);
+    expect(m.teamB.assists).toBe(0);
+  });
+
+  it('leaves already-migrated fields untouched', () => {
+    const freshMatch = {
+      id: 'm2',
+      screen: 'game',
+      teamA: {
+        id: 'a', name: 'Alpha', collapsed: false, players: [], goalkeeperId: null,
+        corners: 0, offsides: 0, yellowCards: 0, redCards: 0,
+        assists: 5, shotsOnGoal: 3, targetsOnGoal: 1, tackles: 2, foulsCommitted: 0, saves: 1,
+      },
+      teamB: {
+        id: 'b', name: 'Beta', collapsed: false, players: [], goalkeeperId: null,
+        corners: 0, offsides: 0, yellowCards: 0, redCards: 0,
+        assists: 0, shotsOnGoal: 0, targetsOnGoal: 0, tackles: 0, foulsCommitted: 0, saves: 0,
+      },
+    } as unknown as Match;
+
+    const m = migrateMatch(freshMatch);
+    expect(m.teamA.assists).toBe(5);
+  });
+});
+
+describe('migrateHistory', () => {
+  it('migrates every entry in the array', () => {
+    const oldMatch = {
+      id: 'm1',
+      screen: 'summary',
+      teamA: { id: 'a', collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0 },
+      teamB: { id: 'b', collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0 },
+    } as unknown as Match;
+
+    const result = migrateHistory([oldMatch]);
+    expect(result[0].teamA.assists).toBe(0);
   });
 });
 

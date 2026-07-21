@@ -1,6 +1,8 @@
-import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import type { SelectChangeEvent } from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import type { SavedTeam } from '../../logic/types';
@@ -24,6 +26,11 @@ export function TeamPicker({ label, savedTeams, value, onChange }: TeamPickerPro
     onChange({ team, activeIds, collapsed: value.collapsed });
   }
 
+  function handleSelectChange(e: SelectChangeEvent) {
+    const team = savedTeams.find((t) => t.id === e.target.value);
+    if (team) selectTeam(team);
+  }
+
   function toggleActive(id: string) {
     const activeIds = value.activeIds.includes(id)
       ? value.activeIds.filter((x) => x !== id)
@@ -34,35 +41,35 @@ export function TeamPicker({ label, savedTeams, value, onChange }: TeamPickerPro
   return (
     <Stack spacing={1}>
       <Typography variant="subtitle1">{label}</Typography>
-      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+      <Select
+        aria-label={label}
+        value={value.team?.id ?? ''}
+        onChange={handleSelectChange}
+        displayEmpty
+        size="small"
+        sx={{ minWidth: 200 }}
+      >
+        <MenuItem value="" disabled>
+          <em>Select a team</em>
+        </MenuItem>
         {savedTeams.map((t) => (
-          <Button
-            key={t.id}
-            variant={value.team?.id === t.id ? 'contained' : 'outlined'}
-            onClick={() => selectTeam(t)}
-          >
+          <MenuItem key={t.id} value={t.id}>
             {t.name}
-          </Button>
+          </MenuItem>
         ))}
-      </Stack>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={value.collapsed}
-            onChange={(e) => onChange({ ...value, collapsed: e.target.checked })}
-          />
-        }
-        label="Collapsed (score-only tracking)"
-      />
-      {value.team && !value.collapsed && (
+      </Select>
+      {value.team && (
         <Stack sx={{ pl: 2 }}>
           {value.team.players.map((p) => (
             <FormControlLabel
               key={p.id}
+              sx={{ my: -0.5 }}
               control={
                 <Checkbox
                   checked={value.activeIds.includes(p.id)}
                   onChange={() => toggleActive(p.id)}
+                  size="small"
+                  sx={{ py: 0.25 }}
                 />
               }
               label={`#${p.num} ${p.name}`}

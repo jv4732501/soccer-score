@@ -1,7 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { undo } from './undo';
 import { adjustScore } from './match';
-import { recordPlayerStat, recordCard, subIn, subOut, setPossession, recordCorner, recordOffside } from './stats';
+import {
+  recordPlayerStat,
+  recordCard,
+  subIn,
+  subOut,
+  setPossession,
+  recordCorner,
+  recordOffside,
+  recordTeamStat,
+  recordAttributedTeamStat,
+} from './stats';
 import { recordStoppage } from './clock';
 import { recordAttempt, startShootout } from './shootout';
 import type { Match } from './types';
@@ -10,19 +20,24 @@ function matchWithPlayer(): Match {
   return {
     id: 'm1',
     screen: 'game',
-    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: true },
+    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: true, hasStoppageTime: false },
     teamA: {
       id: 'a', name: 'Alpha', collapsed: false, goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0,
+      assists: 0, shotsOnGoal: 0, targetsOnGoal: 0, tackles: 0, foulsCommitted: 0, saves: 0,
       players: [{
-        id: 'p1', num: 9, name: 'Sam', starter: true, goalkeeper: false,
+        id: 'p1', num: 9, name: 'Sam', starter: true, position: null,
         onField: true, inClock: 0, fieldSecs: 0, goals: 0, assists: 0, shotsOnGoal: 0,
         tackles: 0, foulsCommitted: 0, saves: 0, yellowCards: 0, redCards: 0, sentOff: false,
       }],
     },
-    teamB: { id: 'b', name: 'Beta', collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0 },
+    teamB: {
+      id: 'b', name: 'Beta', collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0,
+      assists: 0, shotsOnGoal: 0, targetsOnGoal: 0, tackles: 0, foulsCommitted: 0, saves: 0,
+    },
     homeTeam: 'teamA',
     period: 1,
     clock: { elapsedSec: 600, running: false, startedAt: null },
+    stoppageWatch: { elapsedSec: 0, running: false, startedAt: null },
     stoppage: {},
     score: { teamA: 0, teamB: 0 },
     possession: { current: null, since: null, accumSec: { teamA: 0, teamB: 0 } },
@@ -53,6 +68,14 @@ describe('undo', () => {
     const m2 = undo(m1);
     expect(m2.teamA.players[0].goals).toBe(0);
     expect(m2.score.teamA).toBe(0);
+  });
+
+  it('reverses a player stat that also bumped the team-level total (e.g. a tackle)', () => {
+    const m0 = matchWithPlayer();
+    const m1 = recordPlayerStat(m0, 'teamA', 'p1', 'tackles', 0);
+    const m2 = undo(m1);
+    expect(m2.teamA.players[0].tackles).toBe(0);
+    expect(m2.teamA.tackles).toBe(0);
   });
 
   it('reverses a card, including restoring sentOff to its prior value', () => {
@@ -102,6 +125,21 @@ describe('undo', () => {
     expect(m.teamB.offsides).toBe(0);
   });
 
+  it('reverses a team-level stat (e.g. an assist)', () => {
+    const m0 = matchWithPlayer();
+    const m1 = recordTeamStat(m0, 'teamA', 'assists', 0);
+    const m2 = undo(m1);
+    expect(m2.teamA.assists).toBe(0);
+  });
+
+  it('reverses an attributed team+player stat together in one undo', () => {
+    const m0 = matchWithPlayer();
+    const m1 = recordAttributedTeamStat(m0, 'teamA', 'p1', 'assists', 0);
+    const m2 = undo(m1);
+    expect(m2.teamA.assists).toBe(0);
+    expect(m2.teamA.players[0].assists).toBe(0);
+  });
+
   it('reverses a stoppage-time entry back to its previous value (undefined if unset)', () => {
     let m = recordStoppage(matchWithPlayer(), 240, 0);
     m = undo(m);
@@ -123,6 +161,17 @@ describe('undo', () => {
     const m = undo(m0);
     expect(m.teamA.players[0].onField).toBe(false);
     expect(m.teamA.players[0].inClock).toBeNull();
+  });
+
+  it('reverses a subIn that set a position, restoring the prior position', () => {
+    const benched = matchWithPlayer();
+    benched.teamA.players[0].onField = false;
+    benched.teamA.players[0].inClock = null;
+    benched.teamA.players[0].position = null;
+    const m0 = subIn(benched, 'teamA', 'p1', 0, 9);
+    expect(m0.teamA.players[0].position).toBe(9);
+    const m = undo(m0);
+    expect(m.teamA.players[0].position).toBeNull();
   });
 
   it('reverses a team-only card (collapsed team, no player)', () => {

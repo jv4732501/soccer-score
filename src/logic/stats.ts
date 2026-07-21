@@ -1,6 +1,7 @@
 import type { Match, TeamKey, RevEntry } from './types';
 import { clone, appendLog, teamOf, findPlayer, playerTag } from './log';
 import { clockElapsed, formatClock } from './clock';
+import { positionAbbr } from './position';
 
 const PLAYER_STAT_FIELDS = ['goals', 'assists', 'shotsOnGoal', 'tackles', 'foulsCommitted', 'saves'] as const;
 export type PlayerStatField = (typeof PLAYER_STAT_FIELDS)[number];
@@ -28,7 +29,10 @@ export function recordPlayerStat(
   p[stat] += 1;
   const scoreDelta = stat === 'goals' ? 1 : 0;
   if (scoreDelta) m.score[team] += scoreDelta;
-  const rev: RevEntry = { kind: 'stat', team, playerId, fields: { [stat]: 1 }, score: scoreDelta };
+  const isSharedField = (SHARED_STAT_FIELDS as readonly string[]).includes(stat);
+  if (isSharedField) t[stat as SharedStatField] += 1;
+  const teamFields = isSharedField ? { [stat]: 1 } : {};
+  const rev: RevEntry = { kind: 'stat', team, playerId, fields: { [stat]: 1 }, teamFields, score: scoreDelta };
   m = appendLog(m, {
     period: m.period,
     clockText: formatClock(clockElapsed(m.clock, nowMs)),
@@ -129,7 +133,78 @@ export function recordOffside(match: Match, team: TeamKey, nowMs: number): Match
   return m;
 }
 
-export function subIn(match: Match, team: TeamKey, playerId: string, nowMs: number): Match {
+const TEAM_STAT_FIELDS = [
+  'assists',
+  'shotsOnGoal',
+  'targetsOnGoal',
+  'tackles',
+  'foulsCommitted',
+  'saves',
+] as const;
+export type TeamStatField = (typeof TEAM_STAT_FIELDS)[number];
+
+const TEAM_STAT_LABEL: Record<TeamStatField, string> = {
+  assists: 'assist',
+  shotsOnGoal: 'shot on goal',
+  targetsOnGoal: 'target on goal',
+  tackles: 'tackle',
+  foulsCommitted: 'foul',
+  saves: 'save',
+};
+
+export function recordTeamStat(match: Match, team: TeamKey, stat: TeamStatField, nowMs: number): Match {
+  let m = clone(match);
+  const t = teamOf(m, team);
+  t[stat] += 1;
+  const rev: RevEntry = { kind: 'teamStat', team, stat, delta: 1 };
+  m = appendLog(m, {
+    period: m.period,
+    clockText: formatClock(clockElapsed(m.clock, nowMs)),
+    team,
+    playerId: null,
+    type: `team_${stat}`,
+    detail: `${t.name} ${TEAM_STAT_LABEL[stat]}`,
+    rev,
+  });
+  return m;
+}
+
+export const SHARED_STAT_FIELDS = ['assists', 'shotsOnGoal', 'tackles', 'foulsCommitted', 'saves'] as const;
+export type SharedStatField = (typeof SHARED_STAT_FIELDS)[number];
+
+export function recordAttributedTeamStat(
+  match: Match,
+  team: TeamKey,
+  playerId: string,
+  stat: SharedStatField,
+  nowMs: number,
+): Match {
+  let m = clone(match);
+  const t = teamOf(m, team);
+  const p = findPlayer(t, playerId);
+  if (!p) return match;
+  t[stat] += 1;
+  p[stat] += 1;
+  const rev: RevEntry = { kind: 'attributedTeamStat', team, playerId, stat, delta: 1 };
+  m = appendLog(m, {
+    period: m.period,
+    clockText: formatClock(clockElapsed(m.clock, nowMs)),
+    team,
+    playerId,
+    type: `team_${stat}`,
+    detail: `${playerTag(p)} ${TEAM_STAT_LABEL[stat]}`,
+    rev,
+  });
+  return m;
+}
+
+export function subIn(
+  match: Match,
+  team: TeamKey,
+  playerId: string,
+  nowMs: number,
+  position?: number | null,
+): Match {
   const t0 = teamOf(match, team);
   const p0 = findPlayer(t0, playerId);
   if (!p0 || p0.onField || p0.sentOff) return match;
@@ -137,16 +212,27 @@ export function subIn(match: Match, team: TeamKey, playerId: string, nowMs: numb
   const t = teamOf(m, team);
   const p = findPlayer(t, playerId)!;
   const elapsed = clockElapsed(m.clock, nowMs);
+  const positionPrev = p.position;
   p.onField = true;
   p.inClock = elapsed;
-  const rev: RevEntry = { kind: 'sub', team, playerId, onField: false, inClock: null, fieldSecsDelta: 0 };
+  if (position !== undefined) p.position = position;
+  const rev: RevEntry = {
+    kind: 'sub',
+    team,
+    playerId,
+    onField: false,
+    inClock: null,
+    fieldSecsDelta: 0,
+    positionPrev,
+  };
+  const posAbbr = position !== undefined ? positionAbbr(position) : null;
   m = appendLog(m, {
     period: m.period,
     clockText: formatClock(elapsed),
     team,
     playerId,
     type: 'sub_in',
-    detail: `${playerTag(p)} subs in`,
+    detail: `${playerTag(p)} subs in${posAbbr ? ` as ${posAbbr}` : ''}`,
     rev,
   });
   return m;
@@ -165,7 +251,15 @@ export function subOut(match: Match, team: TeamKey, playerId: string, nowMs: num
   p.fieldSecs += delta;
   p.onField = false;
   p.inClock = null;
-  const rev: RevEntry = { kind: 'sub', team, playerId, onField: true, inClock: prevInClock, fieldSecsDelta: delta };
+  const rev: RevEntry = {
+    kind: 'sub',
+    team,
+    playerId,
+    onField: true,
+    inClock: prevInClock,
+    fieldSecsDelta: delta,
+    positionPrev: p.position,
+  };
   m = appendLog(m, {
     period: m.period,
     clockText: formatClock(elapsed),

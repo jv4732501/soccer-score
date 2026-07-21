@@ -3,19 +3,23 @@ import { clone, otherTeam, teamOf, findPlayer, playerTag, appendLog } from './lo
 import type { Match, Team } from './types';
 
 function emptyTeam(id: string, name: string): Team {
-  return { id, name, collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0 };
+  return {
+    id, name, collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0,
+    assists: 0, shotsOnGoal: 0, targetsOnGoal: 0, tackles: 0, foulsCommitted: 0, saves: 0,
+  };
 }
 
 function emptyMatch(): Match {
   return {
     id: 'm1',
     screen: 'game',
-    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false },
+    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false, hasStoppageTime: false },
     teamA: emptyTeam('a', 'Alpha'),
     teamB: emptyTeam('b', 'Beta'),
     homeTeam: 'teamA',
     period: 1,
     clock: { elapsedSec: 0, running: false, startedAt: null },
+    stoppageWatch: { elapsedSec: 0, running: false, startedAt: null },
     stoppage: {},
     score: { teamA: 0, teamB: 0 },
     possession: { current: null, since: null, accumSec: { teamA: 0, teamB: 0 } },
@@ -56,7 +60,7 @@ describe('findPlayer', () => {
   it('finds a player by id, or returns null if absent', () => {
     const t = emptyTeam('a', 'Alpha');
     t.players.push({
-      id: 'p1', num: 9, name: 'Sam', starter: true, goalkeeper: false,
+      id: 'p1', num: 9, name: 'Sam', starter: true, position: null,
       onField: false, inClock: null, fieldSecs: 0, goals: 0, assists: 0, shotsOnGoal: 0,
       tackles: 0, foulsCommitted: 0, saves: 0, yellowCards: 0, redCards: 0, sentOff: false,
     });

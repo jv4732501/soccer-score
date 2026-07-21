@@ -42,6 +42,40 @@ export function toggleClock(match: Match, nowMs: number): Match {
   return match.clock.running ? stopClock(match, nowMs) : startClock(match, nowMs);
 }
 
+export function adjustClock(match: Match, deltaSec: number, nowMs: number): Match {
+  const m = clone(match);
+  const cur = clockElapsed(m.clock, nowMs);
+  m.clock.elapsedSec = Math.max(0, cur + deltaSec);
+  if (m.clock.running) m.clock.startedAt = nowMs;
+  return m;
+}
+
+// A rough, coach-side estimate timer for how much stoppage time to add --
+// separate from the official value recorded by recordStoppage, which is the
+// referee's call. Mirrors startClock/stopClock but operates on stoppageWatch.
+export function startStoppageWatch(match: Match, nowMs: number): Match {
+  if (match.stoppageWatch.running) return match;
+  const m = clone(match);
+  m.stoppageWatch.running = true;
+  m.stoppageWatch.startedAt = nowMs;
+  return m;
+}
+
+export function stopStoppageWatch(match: Match, nowMs: number): Match {
+  if (!match.stoppageWatch.running) return match;
+  const m = clone(match);
+  m.stoppageWatch.elapsedSec = clockElapsed(match.stoppageWatch, nowMs);
+  m.stoppageWatch.running = false;
+  m.stoppageWatch.startedAt = null;
+  return m;
+}
+
+export function toggleStoppageWatch(match: Match, nowMs: number): Match {
+  return match.stoppageWatch.running
+    ? stopStoppageWatch(match, nowMs)
+    : startStoppageWatch(match, nowMs);
+}
+
 export function recordStoppage(match: Match, addedSec: number, nowMs: number): Match {
   let m = clone(match);
   const prev = m.stoppage[m.period];

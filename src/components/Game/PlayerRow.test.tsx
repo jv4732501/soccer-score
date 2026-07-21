@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PlayerRow } from './PlayerRow';
+import type { PlayerRowProps } from './PlayerRow';
 import type { Player } from '../../logic/types';
 
 function player(overrides: Partial<Player> = {}): Player {
@@ -11,7 +12,7 @@ function player(overrides: Partial<Player> = {}): Player {
     num: 9,
     name: 'Alex',
     starter: true,
-    goalkeeper: false,
+    position: null,
     onField: true,
     inClock: 0,
     fieldSecs: 0,
@@ -28,84 +29,133 @@ function player(overrides: Partial<Player> = {}): Player {
   };
 }
 
+function baseProps(overrides: Partial<PlayerRowProps> = {}): PlayerRowProps {
+  return {
+    player: player(),
+    selected: false,
+    onSelect: vi.fn(),
+    onRecordStat: vi.fn(),
+    onRecordCard: vi.fn(),
+    onSubIn: vi.fn(),
+    onSubOut: vi.fn(),
+    ...overrides,
+  };
+}
+
+function longPress(el: HTMLElement) {
+  fireEvent.pointerDown(el);
+  act(() => {
+    vi.advanceTimersByTime(500);
+  });
+}
+
 describe('PlayerRow', () => {
-  it('records a stat via the Stats menu', async () => {
-    const onRecordStat = vi.fn();
-    render(
-      <PlayerRow
-        player={player()}
-        onRecordStat={onRecordStat}
-        onRecordCard={vi.fn()}
-        onSubIn={vi.fn()}
-        onSubOut={vi.fn()}
-      />,
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Stats' }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Goal' }));
-    expect(onRecordStat).toHaveBeenCalledWith('goals');
+  it('shows number, initials, and abbreviated goals/assists on one compact line', () => {
+    render(<PlayerRow {...baseProps({ player: player({ num: 9, name: 'Alex Smith', goals: 2, assists: 1 }) })} />);
+    expect(screen.getByText(/#9/)).toBeInTheDocument();
+    expect(screen.getByText(/AS · 2G 1A/)).toBeInTheDocument();
   });
 
-  it('subs out an on-field player via the Sub menu', async () => {
+  it('renders no Stats or Sub buttons on the row itself', () => {
+    render(<PlayerRow {...baseProps()} />);
+    expect(screen.queryByRole('button', { name: 'Stats' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sub' })).not.toBeInTheDocument();
+  });
+
+  it('a short click selects the player (not a long press)', async () => {
+    const onSelect = vi.fn();
+    render(<PlayerRow {...baseProps({ onSelect })} />);
+    await userEvent.click(screen.getByTestId('player-card'));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it('a short press does not open the long-press menu', () => {
+    vi.useFakeTimers();
+    render(<PlayerRow {...baseProps()} />);
+    const card = screen.getByTestId('player-card');
+    fireEvent.pointerDown(card);
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    fireEvent.pointerUp(card);
+    expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('a long press does not also fire the select click', () => {
+    vi.useFakeTimers();
+    const onSelect = vi.fn();
+    render(<PlayerRow {...baseProps({ onSelect })} />);
+    const card = screen.getByTestId('player-card');
+    longPress(card);
+    fireEvent.click(card);
+    expect(onSelect).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('long-pressing an on-field player opens a menu with Bench and Stats', () => {
+    vi.useFakeTimers();
+    render(<PlayerRow {...baseProps({ player: player({ onField: true }) })} />);
+    longPress(screen.getByTestId('player-card'));
+    expect(screen.getByRole('menuitem', { name: 'Bench' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Stats' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'On' })).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('long-pressing a benched player opens a menu with On and Stats', () => {
+    vi.useFakeTimers();
+    render(<PlayerRow {...baseProps({ player: player({ onField: false }) })} />);
+    longPress(screen.getByTestId('player-card'));
+    expect(screen.getByRole('menuitem', { name: 'On' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Stats' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Bench' })).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('a sent-off player only offers Stats (no Bench/On)', () => {
+    vi.useFakeTimers();
+    render(<PlayerRow {...baseProps({ player: player({ onField: false, sentOff: true }) })} />);
+    longPress(screen.getByTestId('player-card'));
+    expect(screen.getByRole('menuitem', { name: 'Stats' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'On' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Bench' })).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('selecting Bench subs the player out immediately', () => {
+    vi.useFakeTimers();
     const onSubOut = vi.fn();
-    render(
-      <PlayerRow
-        player={player({ onField: true })}
-        onRecordStat={vi.fn()}
-        onRecordCard={vi.fn()}
-        onSubIn={vi.fn()}
-        onSubOut={onSubOut}
-      />,
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Sub' }));
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Sub Out' }));
+    render(<PlayerRow {...baseProps({ player: player({ onField: true }), onSubOut })} />);
+    longPress(screen.getByTestId('player-card'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Bench' }));
     expect(onSubOut).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 
-  it('closes the Stats menu after selecting a stat', async () => {
-    render(
-      <PlayerRow
-        player={player()}
-        onRecordStat={vi.fn()}
-        onRecordCard={vi.fn()}
-        onSubIn={vi.fn()}
-        onSubOut={vi.fn()}
-      />,
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Stats' }));
-    expect(screen.getByRole('menuitem', { name: 'Goal' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Goal' }));
-    expect(screen.queryByRole('menuitem', { name: 'Goal' })).not.toBeInTheDocument();
-  });
-
-  it('subs in a bench player and closes the Sub menu', async () => {
+  it('selecting On opens a position picker, and saving subs the player in with that position', async () => {
+    vi.useFakeTimers();
     const onSubIn = vi.fn();
-    render(
-      <PlayerRow
-        player={player({ onField: false })}
-        onRecordStat={vi.fn()}
-        onRecordCard={vi.fn()}
-        onSubIn={onSubIn}
-        onSubOut={vi.fn()}
-      />,
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Sub' }));
-    expect(screen.getByRole('menuitem', { name: 'Sub In' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Sub In' }));
-    expect(onSubIn).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('menuitem', { name: 'Sub In' })).not.toBeInTheDocument();
+    render(<PlayerRow {...baseProps({ player: player({ onField: false }), onSubIn })} />);
+    longPress(screen.getByTestId('player-card'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'On' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    vi.useRealTimers();
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Position' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'CF' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSubIn).toHaveBeenCalledWith(9);
   });
 
-  it('keeps Sub menu closed when Stats menu is open', async () => {
-    render(
-      <PlayerRow
-        player={player()}
-        onRecordStat={vi.fn()}
-        onRecordCard={vi.fn()}
-        onSubIn={vi.fn()}
-        onSubOut={vi.fn()}
-      />,
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Stats' }));
-    expect(screen.queryByRole('menuitem', { name: 'Sub Out' })).not.toBeInTheDocument();
+  it('records a stat via the Stats menu reached through the long-press menu', async () => {
+    vi.useFakeTimers();
+    const onRecordStat = vi.fn();
+    render(<PlayerRow {...baseProps({ onRecordStat })} />);
+    longPress(screen.getByTestId('player-card'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Stats' }));
+    vi.useRealTimers();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Goal' }));
+    expect(onRecordStat).toHaveBeenCalledWith('goals');
   });
 });

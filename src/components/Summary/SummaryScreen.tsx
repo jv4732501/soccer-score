@@ -16,9 +16,15 @@ import { periodLabel } from '../../logic/periodLabel';
 
 export interface SummaryScreenProps {
   match: Match;
-  mode: 'live' | 'review';
+  mode: 'live' | 'review' | 'inprogress';
   onClose: () => void;
 }
+
+const CLOSE_LABEL = {
+  live: 'New Match',
+  review: 'Back to History',
+  inprogress: 'Back to Game',
+} as const;
 
 // periodScores holds one cumulative-score snapshot per period actually played, taken in strict
 // ladder order (1 -> 2 -> ET1 -> ET2 -> shootout) by endHalf/addExtraTime/startShootout/endGame --
@@ -96,7 +102,8 @@ export function SummaryScreen({ match, mode, onClose }: SummaryScreenProps) {
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
-        Final: {match.teamA.name} {match.score.teamA} – {match.score.teamB} {match.teamB.name}
+        {mode === 'inprogress' ? 'Current' : 'Final'}: {match.teamA.name} {match.score.teamA} –{' '}
+        {match.score.teamB} {match.teamB.name}
       </Typography>
       {match.shootout?.winner && (
         <Typography variant="h6" sx={{ mb: 2 }}>
@@ -145,7 +152,7 @@ export function SummaryScreen({ match, mode, onClose }: SummaryScreenProps) {
         ))}
       </List>
       <Button variant="contained" onClick={onClose} sx={{ mt: 3 }}>
-        {mode === 'live' ? 'New Match' : 'Back to History'}
+        {CLOSE_LABEL[mode]}
       </Button>
     </Box>
   );

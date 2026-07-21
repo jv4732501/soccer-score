@@ -1,5 +1,5 @@
 import { clone } from './log';
-import type { Match, SavedTeam } from './types';
+import type { Match, SavedTeam, Team } from './types';
 
 export function serialize(value: unknown): string {
   return JSON.stringify(value);
@@ -15,6 +15,37 @@ export function deserialize<T>(str: string | null): T | null {
 
 export function isResumable(match: Match | null): boolean {
   return !!match && match.screen === 'game';
+}
+
+// Fills team-level stat fields introduced after this match/backup may have been
+// saved, so older localStorage data and older backup files don't render blank
+// or NaN counts (undefined + 1 === NaN) once loaded into the current schema.
+function normalizeTeam(t: Team): Team {
+  return {
+    ...t,
+    corners: t.corners ?? 0,
+    offsides: t.offsides ?? 0,
+    yellowCards: t.yellowCards ?? 0,
+    redCards: t.redCards ?? 0,
+    assists: t.assists ?? 0,
+    shotsOnGoal: t.shotsOnGoal ?? 0,
+    targetsOnGoal: t.targetsOnGoal ?? 0,
+    tackles: t.tackles ?? 0,
+    foulsCommitted: t.foulsCommitted ?? 0,
+    saves: t.saves ?? 0,
+  };
+}
+
+export function migrateMatch(match: Match): Match {
+  return {
+    ...match,
+    teamA: match.teamA ? normalizeTeam(match.teamA) : match.teamA,
+    teamB: match.teamB ? normalizeTeam(match.teamB) : match.teamB,
+  };
+}
+
+export function migrateHistory(history: Match[]): Match[] {
+  return history.map(migrateMatch);
 }
 
 export function upsertTeam(teams: SavedTeam[], team: SavedTeam): SavedTeam[] {
@@ -121,7 +152,7 @@ export function mergeBackup(
   let history = state.history;
   let gamesAdded = 0;
   let gamesUpdated = 0;
-  for (const m of backup.history) {
+  for (const m of migrateHistory(backup.history)) {
     if (history.some((x) => x.id === m.id)) gamesUpdated += 1;
     else gamesAdded += 1;
     history = upsertHistory(history, m);
@@ -134,7 +165,7 @@ export function mergeBackup(
     if (isResumable(state.match)) {
       matchSkipped = true;
     } else {
-      match = backup.match;
+      match = migrateMatch(backup.match);
       matchRestored = true;
     }
   }

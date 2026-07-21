@@ -12,7 +12,7 @@ const teamB: SavedTeam = { id: 'b1', name: 'Tigers', players: [] };
 
 function shootoutMatch() {
   let m = newMatch({
-    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: true },
+    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: true, hasStoppageTime: false },
     teamA,
     activeIdsA: [],
     collapsedA: true,

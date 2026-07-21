@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { formatClock, parseClock, clockElapsed, startClock, stopClock, toggleClock, recordStoppage } from './clock';
+import {
+  formatClock,
+  parseClock,
+  clockElapsed,
+  startClock,
+  stopClock,
+  toggleClock,
+  recordStoppage,
+  adjustClock,
+  startStoppageWatch,
+  stopStoppageWatch,
+  toggleStoppageWatch,
+} from './clock';
 import type { Match } from './types';
 
 describe('formatClock', () => {
@@ -38,12 +50,13 @@ function emptyMatch(): Match {
   return {
     id: 'm1',
     screen: 'game',
-    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false },
-    teamA: { id: 'a', name: 'Alpha', collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0 },
-    teamB: { id: 'b', name: 'Beta', collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0 },
+    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false, hasStoppageTime: false },
+    teamA: { id: 'a', name: 'Alpha', collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0, assists: 0, shotsOnGoal: 0, targetsOnGoal: 0, tackles: 0, foulsCommitted: 0, saves: 0 },
+    teamB: { id: 'b', name: 'Beta', collapsed: false, players: [], goalkeeperId: null, corners: 0, offsides: 0, yellowCards: 0, redCards: 0, assists: 0, shotsOnGoal: 0, targetsOnGoal: 0, tackles: 0, foulsCommitted: 0, saves: 0 },
     homeTeam: 'teamA',
     period: 1,
     clock: { elapsedSec: 0, running: false, startedAt: null },
+    stoppageWatch: { elapsedSec: 0, running: false, startedAt: null },
     stoppage: {},
     score: { teamA: 0, teamB: 0 },
     possession: { current: null, since: null, accumSec: { teamA: 0, teamB: 0 } },
@@ -86,6 +99,62 @@ describe('startClock / stopClock / toggleClock', () => {
     let m = startClock(emptyMatch(), 0);
     const m2 = startClock(m, 9999);
     expect(m2.clock.startedAt).toBe(0);
+  });
+});
+
+describe('adjustClock', () => {
+  it('adds seconds to a stopped clock', () => {
+    const m = adjustClock(emptyMatch(), 10, 0);
+    expect(m.clock.elapsedSec).toBe(10);
+  });
+
+  it('subtracts seconds from a stopped clock, clamped at 0', () => {
+    let m = emptyMatch();
+    m.clock.elapsedSec = 5;
+    m = adjustClock(m, -10, 0);
+    expect(m.clock.elapsedSec).toBe(0);
+  });
+
+  it('adjusts a running clock and rebases startedAt so it keeps counting from the new value', () => {
+    let m = startClock(emptyMatch(), 0);
+    m = adjustClock(m, 10, 5000); // 5s elapsed (0 + 5000ms) + 10 = 15
+    expect(m.clock.running).toBe(true);
+    expect(m.clock.startedAt).toBe(5000);
+    expect(clockElapsed(m.clock, 5000)).toBe(15);
+  });
+});
+
+describe('startStoppageWatch / stopStoppageWatch / toggleStoppageWatch', () => {
+  it('startStoppageWatch sets running and startedAt', () => {
+    const m = startStoppageWatch(emptyMatch(), 5000);
+    expect(m.stoppageWatch.running).toBe(true);
+    expect(m.stoppageWatch.startedAt).toBe(5000);
+  });
+  it('stopStoppageWatch freezes elapsedSec and clears startedAt', () => {
+    let m = startStoppageWatch(emptyMatch(), 0);
+    m = stopStoppageWatch(m, 45000);
+    expect(m.stoppageWatch.running).toBe(false);
+    expect(m.stoppageWatch.startedAt).toBeNull();
+    expect(m.stoppageWatch.elapsedSec).toBe(45);
+  });
+  it('toggleStoppageWatch flips running state', () => {
+    let m = toggleStoppageWatch(emptyMatch(), 0);
+    expect(m.stoppageWatch.running).toBe(true);
+    m = toggleStoppageWatch(m, 5000);
+    expect(m.stoppageWatch.running).toBe(false);
+    expect(m.stoppageWatch.elapsedSec).toBe(5);
+  });
+  it('stopStoppageWatch on an already-stopped watch is a no-op', () => {
+    const m = stopStoppageWatch(emptyMatch(), 9999);
+    expect(m.stoppageWatch.elapsedSec).toBe(0);
+    expect(m.stoppageWatch.startedAt).toBeNull();
+  });
+  it('does not affect the main game clock', () => {
+    let m = startClock(emptyMatch(), 0);
+    m = startStoppageWatch(m, 0);
+    m = stopStoppageWatch(m, 20000);
+    expect(m.clock.running).toBe(true);
+    expect(m.stoppageWatch.running).toBe(false);
   });
 });
 

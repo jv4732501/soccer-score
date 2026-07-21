@@ -12,7 +12,7 @@ const teamB: SavedTeam = { id: 'b1', name: 'Tigers', players: [] };
 
 function finishedMatch(nowMs: number) {
   let m = newMatch({
-    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false },
+    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: false, hasStoppageTime: false },
     teamA,
     activeIdsA: [],
     collapsedA: true,
@@ -29,7 +29,7 @@ function finishedMatch(nowMs: number) {
 
 function shootoutFinishedMatch(nowMs: number) {
   let m = newMatch({
-    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: true },
+    config: { halfLengthMin: 45, hasExtraTime: false, extraTimeLengthMin: 15, hasShootout: true, hasStoppageTime: false },
     teamA,
     activeIdsA: [],
     collapsedA: true,

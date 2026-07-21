@@ -29,6 +29,9 @@ function applyRev(m: Match, rev: RevEntry): void {
           }
         }
       }
+      for (const [field, n] of Object.entries(rev.teamFields)) {
+        (t as unknown as Record<string, number>)[field] -= n;
+      }
       m.score[rev.team] -= rev.score;
       break;
     }
@@ -53,6 +56,7 @@ function applyRev(m: Match, rev: RevEntry): void {
         p.onField = rev.onField;
         p.inClock = rev.inClock;
         p.fieldSecs -= rev.fieldSecsDelta;
+        p.position = rev.positionPrev;
       }
       break;
     }
@@ -70,6 +74,17 @@ function applyRev(m: Match, rev: RevEntry): void {
     }
     case 'offside': {
       teamOf(m, rev.team).offsides -= rev.delta;
+      break;
+    }
+    case 'teamStat': {
+      (teamOf(m, rev.team) as unknown as Record<string, number>)[rev.stat] -= rev.delta;
+      break;
+    }
+    case 'attributedTeamStat': {
+      const t = teamOf(m, rev.team);
+      (t as unknown as Record<string, number>)[rev.stat] -= rev.delta;
+      const p = findPlayer(t, rev.playerId);
+      if (p) (p as unknown as Record<string, number>)[rev.stat] -= rev.delta;
       break;
     }
     case 'stoppage': {

@@ -17,6 +17,7 @@ function App() {
   const api = useMatch();
   const [homeView, setHomeView] = useState<HomeView>('teams');
   const [historyViewId, setHistoryViewId] = useState<string | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const theme = useMemo(() => createAppTheme(api.theme), [api.theme]);
 
   const reviewMatch = historyViewId
@@ -28,23 +29,46 @@ function App() {
     if (historyViewId && !reviewMatch) setHistoryViewId(null);
   }, [historyViewId, reviewMatch]);
 
+  useEffect(() => {
+    // The in-game Review overlay only makes sense while a game is being played;
+    // once the match leaves that screen (half ends into shootout, game ends, etc.)
+    // drop it so a later match doesn't reopen showing a stale Review.
+    if (api.match?.screen !== 'game') setReviewOpen(false);
+  }, [api.match?.screen]);
+
+  const onToggleTheme = () => api.setTheme(api.theme === 'dark' ? 'light' : 'dark');
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      {api.match && api.match.screen === 'game' ? (
+      {api.match && api.match.screen === 'game' && reviewOpen ? (
         <Container maxWidth="md" sx={{ py: 4 }}>
+          <SummaryScreen match={api.match} mode="inprogress" onClose={() => setReviewOpen(false)} />
+        </Container>
+      ) : api.match && api.match.screen === 'game' ? (
+        <Container maxWidth="md" sx={{ pt: 1, pb: 4 }}>
           <GameScreen
             match={api.match}
+            theme={api.theme}
+            onToggleTheme={onToggleTheme}
+            onUpdateConfig={api.updateConfig}
+            onOpenReview={() => setReviewOpen(true)}
             onAdjustScore={api.adjustScore}
             onRecordPlayerStat={api.recordPlayerStat}
             onRecordCard={api.recordCard}
             onRecordCorner={api.recordCorner}
             onRecordOffside={api.recordOffside}
+            onRecordTeamStat={api.recordTeamStat}
+            onRecordAttributedTeamStat={api.recordAttributedTeamStat}
+            onAddPlayer={api.addPlayer}
             onSubIn={api.subIn}
             onSubOut={api.subOut}
             onSetPossession={api.setPossession}
             onRecordStoppage={api.recordStoppage}
             onToggleClock={api.toggleClock}
+            onAdjustClock={api.adjustClock}
+            onToggleStoppageWatch={api.toggleStoppageWatch}
+            onStopStoppageWatch={api.stopStoppageWatch}
             onEndHalf={api.endHalf}
             onAddExtraTime={api.addExtraTime}
             onEndGame={api.endGame}
@@ -81,7 +105,10 @@ function App() {
           <Nav
             homeView={homeView}
             onChangeHomeView={setHomeView}
-            onToggleTheme={() => api.setTheme(api.theme === 'dark' ? 'light' : 'dark')}
+            theme={api.theme}
+            onToggleTheme={onToggleTheme}
+            onExportBackup={api.exportBackup}
+            onImportBackup={api.importBackup}
           />
           <Container maxWidth="md" sx={{ py: 4 }}>
             {homeView === 'teams' && (
@@ -92,12 +119,7 @@ function App() {
               />
             )}
             {homeView === 'setup' && (
-              <SetupScreen
-                savedTeams={api.savedTeams}
-                onStartMatch={api.startMatch}
-                onExportBackup={api.exportBackup}
-                onImportBackup={api.importBackup}
-              />
+              <SetupScreen savedTeams={api.savedTeams} onStartMatch={api.startMatch} />
             )}
             {homeView === 'history' && (
               <HistoryScreen

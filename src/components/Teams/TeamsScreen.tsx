@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
@@ -17,6 +22,7 @@ export interface TeamsScreenProps {
 
 export function TeamsScreen({ savedTeams, onUpsertTeam, onRemoveTeam }: TeamsScreenProps) {
   const [editing, setEditing] = useState<SavedTeam | 'new' | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   if (editing !== null) {
     return (
@@ -45,7 +51,7 @@ export function TeamsScreen({ savedTeams, onUpsertTeam, onRemoveTeam }: TeamsScr
                 <Button size="small" onClick={() => setEditing(team)}>
                   Edit
                 </Button>
-                <Button size="small" color="error" onClick={() => onRemoveTeam(team.id)}>
+                <Button size="small" color="error" onClick={() => setPendingDeleteId(team.id)}>
                   Delete
                 </Button>
               </Stack>
@@ -58,6 +64,25 @@ export function TeamsScreen({ savedTeams, onUpsertTeam, onRemoveTeam }: TeamsScr
       <Button variant="contained" onClick={() => setEditing('new')}>
         Add Team
       </Button>
+      <Dialog open={pendingDeleteId !== null} onClose={() => setPendingDeleteId(null)}>
+        <DialogTitle>Delete this team?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>This cannot be undone.</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingDeleteId(null)}>Cancel</Button>
+          <Button
+            color="error"
+            onClick={() => {
+              if (pendingDeleteId) onRemoveTeam(pendingDeleteId);
+              setPendingDeleteId(null);
+            }}
+            autoFocus
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
