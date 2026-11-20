@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-SoccerScore — a soccer/football match scorer, sibling to `basketballscore` but built with React + Vite + TypeScript instead of a zero-build vanilla-JS stack. Client-side only: `localStorage` persistence, no backend, hosted on GitHub Pages via a GitHub Actions build+deploy workflow.
+SoccerScore — a soccer/football match scorer, sibling to `basketball-score` but built with React + Vite + TypeScript instead of a zero-build vanilla-JS stack. Client-side only: `localStorage` persistence, no backend, hosted on GitHub Pages via a GitHub Actions build+deploy workflow.
 
 ## Commands
 
