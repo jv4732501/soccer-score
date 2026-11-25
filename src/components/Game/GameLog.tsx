@@ -13,7 +13,7 @@ export function GameLog({ log }: GameLogProps) {
   return (
     <Box
       sx={{
-        maxHeight: 220,
+        height: '100%',
         overflowY: 'auto',
         border: '1px solid',
         borderColor: 'divider',

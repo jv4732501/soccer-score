@@ -122,7 +122,7 @@ export function GameScreen({
   }
 
   return (
-    <Box>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <GameToolbar
         theme={theme}
         onToggleTheme={onToggleTheme}
@@ -158,6 +158,7 @@ export function GameScreen({
           <TeamStatGrid
             team={match.teamA}
             teamKey="teamA"
+            log={match.log}
             onRecordCorner={onRecordCorner}
             onRecordOffside={onRecordOffside}
             onRecordCard={handleTeamCard}
@@ -200,6 +201,7 @@ export function GameScreen({
           <TeamStatGrid
             team={match.teamB}
             teamKey="teamB"
+            log={match.log}
             onRecordCorner={onRecordCorner}
             onRecordOffside={onRecordOffside}
             onRecordCard={handleTeamCard}
@@ -208,11 +210,12 @@ export function GameScreen({
         </Box>
       </Stack>
       <Divider sx={{ my: 1.5 }} />
-      <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
+      <Stack direction="row" spacing={2} sx={{ alignItems: 'stretch', flex: 1, minHeight: 0 }}>
         <Box sx={{ flex: 1 }}>
           <TeamPanel
             team={match.teamA}
             teamKey="teamA"
+            log={match.log}
             selectedPlayerId={selectedTeam === 'teamA' ? selectedPlayerId : null}
             onSelectPlayer={handleSelectPlayer}
             onAdjustScore={onAdjustScore}
@@ -230,6 +233,7 @@ export function GameScreen({
           <TeamPanel
             team={match.teamB}
             teamKey="teamB"
+            log={match.log}
             selectedPlayerId={selectedTeam === 'teamB' ? selectedPlayerId : null}
             onSelectPlayer={handleSelectPlayer}
             onAdjustScore={onAdjustScore}

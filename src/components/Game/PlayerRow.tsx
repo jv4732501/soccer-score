@@ -12,13 +12,15 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Typography from '@mui/material/Typography';
-import type { Player } from '../../logic/types';
+import type { LogEntry, Player } from '../../logic/types';
 import type { PlayerStatField } from '../../logic/stats';
 import { POSITIONS } from '../../logic/position';
+import { periodLabel } from '../../logic/periodLabel';
 import { StatMenu } from './StatMenu';
 
 export interface PlayerRowProps {
   player: Player;
+  log: LogEntry[];
   selected: boolean;
   onSelect: () => void;
   onRecordStat: (stat: PlayerStatField) => void;
@@ -40,6 +42,7 @@ function initials(name: string): string {
 
 export function PlayerRow({
   player,
+  log,
   selected,
   onSelect,
   onRecordStat,
@@ -51,6 +54,7 @@ export function PlayerRow({
   const [statAnchor, setStatAnchor] = useState<HTMLElement | null>(null);
   const [positionOpen, setPositionOpen] = useState(false);
   const [positionValue, setPositionValue] = useState<number | ''>('');
+  const [activityOpen, setActivityOpen] = useState(false);
 
   const cardRef = useRef<HTMLLIElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,12 +103,18 @@ export function PlayerRow({
     closeMenu();
   }
 
+  function handleActivityClick() {
+    setActivityOpen(true);
+    closeMenu();
+  }
+
   function saveOn() {
     onSubIn(positionValue === '' ? null : positionValue);
     setPositionOpen(false);
   }
 
   const numberColor = player.sentOff ? 'error.main' : player.onField ? 'success.main' : 'inherit';
+  const activityEntries = log.filter((e) => e.playerId === player.id).slice().reverse();
 
   return (
     <ListItem
@@ -115,6 +125,7 @@ export function PlayerRow({
       sx={{
         py: 0.5,
         px: 1,
+        mx: 0.75,
         mb: 0.5,
         border: '1px solid',
         borderColor: selected ? 'primary.main' : 'divider',
@@ -138,6 +149,7 @@ export function PlayerRow({
       </Typography>
 
       <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={closeMenu}>
+        <MenuItem onClick={handleActivityClick}>Activity</MenuItem>
         {!player.sentOff &&
           (player.onField ? (
             <MenuItem onClick={handleBench}>Bench</MenuItem>
@@ -187,6 +199,28 @@ export function PlayerRow({
           <Button onClick={saveOn} variant="contained">
             Save
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={activityOpen} onClose={() => setActivityOpen(false)}>
+        <DialogTitle>
+          #{player.num} {initials(player.name)}
+        </DialogTitle>
+        <DialogContent>
+          {activityEntries.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              No activity yet
+            </Typography>
+          ) : (
+            activityEntries.map((e) => (
+              <Typography key={e.id} variant="body2" component="div">
+                {e.clockText} {periodLabel(e.period)} — {e.detail}
+              </Typography>
+            ))
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setActivityOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </ListItem>

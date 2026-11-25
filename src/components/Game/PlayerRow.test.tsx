@@ -4,7 +4,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PlayerRow } from './PlayerRow';
 import type { PlayerRowProps } from './PlayerRow';
-import type { Player } from '../../logic/types';
+import type { LogEntry, Player } from '../../logic/types';
 
 function player(overrides: Partial<Player> = {}): Player {
   return {
@@ -29,9 +29,24 @@ function player(overrides: Partial<Player> = {}): Player {
   };
 }
 
+function logEntry(overrides: Partial<LogEntry> = {}): LogEntry {
+  return {
+    id: 1,
+    period: 1,
+    clockText: '10:00',
+    team: 'teamA',
+    playerId: 'p1',
+    type: 'goals',
+    detail: '#9 Alex goal',
+    rev: null,
+    ...overrides,
+  };
+}
+
 function baseProps(overrides: Partial<PlayerRowProps> = {}): PlayerRowProps {
   return {
     player: player(),
+    log: [],
     selected: false,
     onSelect: vi.fn(),
     onRecordStat: vi.fn(),
@@ -157,5 +172,48 @@ describe('PlayerRow', () => {
     vi.useRealTimers();
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Goal' }));
     expect(onRecordStat).toHaveBeenCalledWith('goals');
+  });
+
+  it('long-pressing a player offers an Activity option', () => {
+    vi.useFakeTimers();
+    render(<PlayerRow {...baseProps()} />);
+    longPress(screen.getByTestId('player-card'));
+    expect(screen.getByRole('menuitem', { name: 'Activity' })).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('selecting Activity shows a dialog with only this player\'s log entries, newest first', () => {
+    vi.useFakeTimers();
+    render(
+      <PlayerRow
+        {...baseProps({
+          player: player({ id: 'p1', num: 9, name: 'Alex Smith' }),
+          log: [
+            logEntry({ id: 1, playerId: 'p1', clockText: '10:00', detail: '#9 Alex Smith subs in' }),
+            logEntry({ id: 2, playerId: 'other', detail: 'someone else goal' }),
+            logEntry({ id: 3, playerId: 'p1', clockText: '5:00', detail: '#9 Alex Smith goal' }),
+          ],
+        })}
+      />,
+    );
+    longPress(screen.getByTestId('player-card'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Activity' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('#9 AS')).toBeInTheDocument();
+    const items = screen.getAllByText(/—/);
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent('5:00 Half 1 — #9 Alex Smith goal');
+    expect(items[1]).toHaveTextContent('10:00 Half 1 — #9 Alex Smith subs in');
+    expect(screen.queryByText(/someone else goal/)).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('shows "No activity yet" when the player has no log entries', () => {
+    vi.useFakeTimers();
+    render(<PlayerRow {...baseProps({ log: [] })} />);
+    longPress(screen.getByTestId('player-card'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Activity' }));
+    expect(screen.getByText('No activity yet')).toBeInTheDocument();
+    vi.useRealTimers();
   });
 });

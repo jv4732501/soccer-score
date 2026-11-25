@@ -47,6 +47,7 @@ function baseProps(overrides: Partial<TeamPanelProps> = {}): TeamPanelProps {
   return {
     team: fullTeam(),
     teamKey: 'teamB',
+    log: [],
     selectedPlayerId: null,
     onSelectPlayer: vi.fn(),
     onAdjustScore: vi.fn(),

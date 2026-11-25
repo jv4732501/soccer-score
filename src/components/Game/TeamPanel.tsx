@@ -4,13 +4,14 @@ import Button from '@mui/material/Button';
 import List from '@mui/material/List';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
-import type { Team, TeamKey } from '../../logic/types';
+import type { LogEntry, Team, TeamKey } from '../../logic/types';
 import type { PlayerStatField } from '../../logic/stats';
 import { PlayerRow } from './PlayerRow';
 
 export interface TeamPanelProps {
   team: Team;
   teamKey: TeamKey;
+  log: LogEntry[];
   selectedPlayerId: string | null;
   onSelectPlayer: (playerId: string) => void;
   onAdjustScore: (team: TeamKey, delta: number) => void;
@@ -24,6 +25,7 @@ export interface TeamPanelProps {
 export function TeamPanel({
   team,
   teamKey,
+  log,
   selectedPlayerId,
   onSelectPlayer,
   onAdjustScore,
@@ -46,7 +48,7 @@ export function TeamPanel({
   }
 
   return (
-    <Box>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {team.collapsed && (
         <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
           <Button size="small" onClick={() => onAdjustScore(teamKey, 1)}>
@@ -65,11 +67,12 @@ export function TeamPanel({
       )}
       {!team.collapsed && (
         <>
-          <List sx={{ maxHeight: 320, overflowY: 'auto' }}>
+          <List sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
             {team.players.map((p) => (
               <PlayerRow
                 key={p.id}
                 player={p}
+                log={log}
                 selected={selectedPlayerId === p.id}
                 onSelect={() => onSelectPlayer(p.id)}
                 onRecordStat={(stat) => onRecordPlayerStat(teamKey, p.id, stat)}
@@ -79,7 +82,7 @@ export function TeamPanel({
               />
             ))}
           </List>
-          <Stack direction="row" spacing={0.5} sx={{ mt: 1, alignItems: 'center' }}>
+          <Stack direction="row" spacing={0.5} sx={{ mt: 1, alignItems: 'center', flexShrink: 0 }}>
             <TextField
               inputRef={numFieldRef}
               placeholder="#"

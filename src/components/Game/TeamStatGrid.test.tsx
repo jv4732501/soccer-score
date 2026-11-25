@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TeamStatGrid } from './TeamStatGrid';
-import type { Team } from '../../logic/types';
+import type { LogEntry, Team } from '../../logic/types';
 
 function team(overrides: Partial<Team> = {}): Team {
   return {
@@ -26,12 +26,38 @@ function team(overrides: Partial<Team> = {}): Team {
   };
 }
 
+function logEntry(overrides: Partial<LogEntry> = {}): LogEntry {
+  return {
+    id: 1,
+    period: 1,
+    clockText: '10:00',
+    team: 'teamA',
+    playerId: null,
+    type: 'corner',
+    detail: 'Lions corner',
+    rev: null,
+    ...overrides,
+  };
+}
+
+function longPress(el: HTMLElement) {
+  fireEvent.pointerDown(el);
+  act(() => {
+    vi.advanceTimersByTime(500);
+  });
+}
+
 describe('TeamStatGrid', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders all 10 stat buttons with their current counts', () => {
     render(
       <TeamStatGrid
         team={team({ corners: 2, offsides: 1, shotsOnGoal: 3 })}
         teamKey="teamA"
+        log={[]}
         onRecordCorner={vi.fn()}
         onRecordOffside={vi.fn()}
         onRecordCard={vi.fn()}
@@ -56,6 +82,7 @@ describe('TeamStatGrid', () => {
       <TeamStatGrid
         team={team()}
         teamKey="teamB"
+        log={[]}
         onRecordCorner={onRecordCorner}
         onRecordOffside={vi.fn()}
         onRecordCard={vi.fn()}
@@ -73,6 +100,7 @@ describe('TeamStatGrid', () => {
       <TeamStatGrid
         team={team()}
         teamKey="teamA"
+        log={[]}
         onRecordCorner={vi.fn()}
         onRecordOffside={vi.fn()}
         onRecordCard={vi.fn()}
@@ -89,6 +117,7 @@ describe('TeamStatGrid', () => {
       <TeamStatGrid
         team={team()}
         teamKey="teamA"
+        log={[]}
         onRecordCorner={vi.fn()}
         onRecordOffside={vi.fn()}
         onRecordCard={onRecordCard}
@@ -99,5 +128,91 @@ describe('TeamStatGrid', () => {
     expect(onRecordCard).toHaveBeenCalledWith('teamA', null, 'yellow');
     await userEvent.click(screen.getByRole('button', { name: 'RC (0)' }));
     expect(onRecordCard).toHaveBeenCalledWith('teamA', null, 'red');
+  });
+
+  it('a short press does not open the activity dialog', () => {
+    vi.useFakeTimers();
+    render(
+      <TeamStatGrid
+        team={team()}
+        teamKey="teamA"
+        log={[logEntry()]}
+        onRecordCorner={vi.fn()}
+        onRecordOffside={vi.fn()}
+        onRecordCard={vi.fn()}
+        onRecordTeamStat={vi.fn()}
+      />,
+    );
+    const btn = screen.getByRole('button', { name: 'Cor (2)' });
+    fireEvent.pointerDown(btn);
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    fireEvent.pointerUp(btn);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('long-pressing Cor opens a dialog with that team\'s corner log entries and does not record a corner', () => {
+    vi.useFakeTimers();
+    const onRecordCorner = vi.fn();
+    render(
+      <TeamStatGrid
+        team={team()}
+        teamKey="teamA"
+        log={[
+          logEntry({ id: 1, team: 'teamA', type: 'corner', detail: 'Lions corner', clockText: '10:00' }),
+          logEntry({ id: 2, team: 'teamB', type: 'corner', detail: 'Tigers corner' }),
+          logEntry({ id: 3, team: 'teamA', type: 'offside', detail: 'Lions offside' }),
+        ]}
+        onRecordCorner={onRecordCorner}
+        onRecordOffside={vi.fn()}
+        onRecordCard={vi.fn()}
+        onRecordTeamStat={vi.fn()}
+      />,
+    );
+    longPress(screen.getByRole('button', { name: 'Cor (2)' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Lions Cor')).toBeInTheDocument();
+    expect(screen.getByText(/10:00 Half 1 — Lions corner/)).toBeInTheDocument();
+    expect(screen.queryByText(/Tigers corner/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Lions offside/)).not.toBeInTheDocument();
+    expect(onRecordCorner).not.toHaveBeenCalled();
+  });
+
+  it('long-pressing a stat button with no matching entries shows "No activity yet"', () => {
+    vi.useFakeTimers();
+    render(
+      <TeamStatGrid
+        team={team()}
+        teamKey="teamA"
+        log={[]}
+        onRecordCorner={vi.fn()}
+        onRecordOffside={vi.fn()}
+        onRecordCard={vi.fn()}
+        onRecordTeamStat={vi.fn()}
+      />,
+    );
+    longPress(screen.getByRole('button', { name: 'AST (0)' }));
+    expect(screen.getByText('No activity yet')).toBeInTheDocument();
+  });
+
+  it('AST activity includes both attributed (team_assists) and unattributed team-stat entries', () => {
+    vi.useFakeTimers();
+    render(
+      <TeamStatGrid
+        team={team()}
+        teamKey="teamA"
+        log={[
+          logEntry({ id: 1, team: 'teamA', type: 'team_assists', playerId: 'p1', detail: '#9 Alex assist' }),
+          logEntry({ id: 2, team: 'teamA', type: 'assists', playerId: 'p1', detail: '#9 Alex assist' }),
+        ]}
+        onRecordCorner={vi.fn()}
+        onRecordOffside={vi.fn()}
+        onRecordCard={vi.fn()}
+        onRecordTeamStat={vi.fn()}
+      />,
+    );
+    longPress(screen.getByRole('button', { name: 'AST (0)' }));
+    expect(screen.getAllByText(/Alex assist/)).toHaveLength(2);
   });
 });
